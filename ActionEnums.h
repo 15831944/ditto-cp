@@ -92,6 +92,17 @@ public:
 		IMPORT_CLIP,
 		GLOBAl_HOTKEYS,
 		DELETE_CLIP_DATA,
+		REPLACE_TOP_STICKY_CLIP,
+		PROMPT_SEND_TO_FRIEND,
+		SAVE_CF_HDROP_FIlE_DATA,
+		TOGGLE_CLIPBOARD_CONNECTION,
+		MOVE_SELECTION_UP,
+		MOVE_SELECTION_DOWN,
+		TOGGLE_DESCRIPTION_WORD_WRAP,
+		APPLY_LAST_SEARCH,
+		TOGGLE_SEARCH_METHOD,
+		PASTE_SCRIPT,
+		MOVE_CLIP_LAST,
 
 
 		LAST_ACTION
@@ -102,5 +113,6 @@ public:
 	static int GetDefaultShortCutKeyA(ActionEnumValues value, int pos);
 	static int GetDefaultShortCutKeyB(ActionEnumValues value, int pos);
 	static bool UserConfigurable(ActionEnumValues value);
+	static bool ToolTipAction(ActionEnumValues value);
 };
 

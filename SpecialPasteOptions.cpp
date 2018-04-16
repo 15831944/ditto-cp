@@ -15,6 +15,9 @@ CSpecialPasteOptions::CSpecialPasteOptions()
 	m_pasteSentenceCase = false;
 	m_pasteTypoglycemia = false;
 	m_pasteAddingDateTime = false;
+	m_delayRenderLockout = 0;
+	m_dragDropFilesOnly = false;
+	m_pasteScriptGuid = _T("");
 }
 
 CSpecialPasteOptions::~CSpecialPasteOptions()

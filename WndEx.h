@@ -36,23 +36,23 @@ public:
 
 public:
 	void InvalidateNc();
-	void SetCaptionOn(int nPos, bool bOnstartup = false);
+	void SetCaptionOn(int nPos, bool bOnstartup, int captionSize, int captionFontSize);
 	void MinMaxWindow(long lOption = SWAP_MIN_MAX);
 	void GetWindowRectEx(LPRECT lpRect);
 	bool SetCaptionColorActive(BOOL bPersistant, BOOL ConnectedToClipboard);
 	void SetAutoMaxDelay(long lDelay)	{ m_lDelayMaxSeconds = lDelay; }
 	bool GetMinimized()	{ return m_DittoWindow.m_bMinimized; }
 
-	void SetCustomWindowTitle(CString title) { m_DittoWindow.m_customWindowTitle = title;  m_DittoWindow.m_useCustomWindowTitle = true; }
+	void SetCustomWindowTitle(CString title);
 
 	void SetToolTipText(CString text);
 
+	int GetCaptionSize() { return m_DittoWindow.m_captionBorderWidth; }
+
 protected:
 	CDittoWindow m_DittoWindow;
-	CRect m_crFullSizeWindow;
-	bool m_bMaxSetTimer;
-	COleDateTime m_TimeMinimized;
-	COleDateTime m_TimeMaximized;
+	
+	bool m_bMaxSetTimer;	
 	int m_lDelayMaxSeconds;
 	CToolTipCtrl m_toolTip;
 

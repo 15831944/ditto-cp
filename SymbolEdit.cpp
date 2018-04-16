@@ -4,8 +4,14 @@
 #include "stdafx.h"
 #include "SymbolEdit.h"
 #include "cp_main.h"
+#include "QListCtrl.h"
+#include "Shared\TextConvert.h"
 
 // CSymbolEdit
+
+#define RANGE_START 3000
+#define CLEAR_LIST 3050
+#define LIST_MAX_COUNT 50
 
 IMPLEMENT_DYNAMIC(CSymbolEdit, CEdit)
 
@@ -30,9 +36,14 @@ CSymbolEdit::CSymbolEdit() :
 		DEFAULT_PITCH | FF_SWISS,  // nPitchAndFamily
 		_T("Calibri"));
 
+	m_mouseDownOnSearches = false;
+	m_mouseHoveringOverSearches = false;
+	m_mouseDownOnClose = false;
+	m_mouseHoveringOverClose = false;
 
 	//m_searchButton.LoadStdImageDPI(Search_16, Search_20, Search_24, Search_32, _T("PNG"));
 	m_closeButton.LoadStdImageDPI(search_close_16, Search_20, Search_24, Search_28, Search_32, _T("PNG"));
+	m_searchesButton.LoadStdImageDPI(down_16, down_20, down_24, down_28, down_32, _T("PNG"));
 }
 
 CSymbolEdit::~CSymbolEdit()
@@ -44,6 +55,7 @@ CSymbolEdit::~CSymbolEdit()
 BEGIN_MESSAGE_MAP(CSymbolEdit, CEdit)
 	ON_WM_PAINT()
 	ON_MESSAGE(WM_SETFONT, OnSetFont)
+	//ON_MESSAGE(WM_EXITMENULOOP, OnMenuExit)
 	ON_WM_CTLCOLOR_REFLECT()
 	ON_WM_SETFOCUS()
 	ON_WM_KILLFOCUS()
@@ -51,6 +63,8 @@ BEGIN_MESSAGE_MAP(CSymbolEdit, CEdit)
 	ON_WM_LBUTTONUP()
 	ON_WM_LBUTTONDOWN()
 	ON_WM_MOUSEMOVE()
+	ON_COMMAND_RANGE(RANGE_START, (RANGE_START+ LIST_MAX_COUNT), OnSelectSearchString)
+	ON_WM_EXITSIZEMOVE()
 END_MESSAGE_MAP()
 
 BOOL CSymbolEdit::PreTranslateMessage(MSG* pMsg)
@@ -99,13 +113,22 @@ BOOL CSymbolEdit::PreTranslateMessage(MSG* pMsg)
 					//Send a message to the parent to refill the lb from the search
 					pWnd->PostMessage(CB_SEARCH, 0, 0);
 				}
+
+				AddToSearchHistory();
 			}
 
 			return TRUE;
 		}
+		else if (pMsg->wParam == VK_DOWN &&
+			((GetKeyState(VK_CONTROL) & 0x8000) || ((GetKeyState(VK_CONTROL) & 0x8000) && (GetKeyState(VK_SHIFT) & 0x8000))))
+		{
+			if (ShowSearchHistoryMenu())
+			{
+				return TRUE;
+			}
+		}
 		else if (pMsg->wParam == VK_DOWN ||
 			pMsg->wParam == VK_UP ||
-			pMsg->wParam == VK_F3 ||
 			pMsg->wParam == VK_PRIOR ||
 			pMsg->wParam == VK_NEXT)
 		{
@@ -116,11 +139,169 @@ BOOL CSymbolEdit::PreTranslateMessage(MSG* pMsg)
 				return TRUE;
 			}
 		}
+		else if (pMsg->wParam == VK_DELETE)
+		{
+			int startChar;
+			int endChar;
+			this->GetSel(startChar, endChar);
+			CString cs;
+			this->GetWindowText(cs);
+			//if selection is at the end then forward this on to the parent to delete the selected clip
+			if(startChar == cs.GetLength() &&
+				endChar == cs.GetLength())
+			{ 
+				CWnd *pWnd = GetParent();
+				if (pWnd)
+				{
+					pWnd->SendMessage(NM_DELETE, pMsg->wParam, pMsg->lParam);
+					return TRUE;
+				}
+			}
+		}
 		break;
 	}
 	}
 
 	return CEdit::PreTranslateMessage(pMsg);
+}
+
+CString CSymbolEdit::SavePastSearches()
+{
+	TiXmlDocument doc;
+
+	TiXmlElement* outer = new TiXmlElement("PastSearches");
+	doc.LinkEndChild(outer);
+
+	int count = m_searches.GetCount();
+	for (int i = 0; i < count; i++)
+	{		
+		TiXmlElement* searchElement = new TiXmlElement("Search");
+
+		CStringA t;
+		CTextConvert::ConvertToUTF8(m_searches[i], t);
+		searchElement->SetAttribute("text", t);
+
+		outer->LinkEndChild(searchElement);
+	}
+
+	TiXmlPrinter printer;
+	printer.SetLineBreak("");
+	doc.Accept(&printer);
+	CString cs = printer.CStr();
+
+	return cs;
+}
+
+void CSymbolEdit::LoadPastSearches(CString values)
+{
+	m_searches.RemoveAll();
+
+	TiXmlDocument doc;
+	CStringA xmlA;
+	CTextConvert::ConvertToUTF8(values, xmlA);
+	doc.Parse(xmlA);
+
+	TiXmlElement *ItemHeader = doc.FirstChildElement("PastSearches");
+
+	if (ItemHeader != NULL)
+	{
+		TiXmlElement *ItemElement = ItemHeader->FirstChildElement();
+
+		while (ItemElement)
+		{
+			CString item = ItemElement->Attribute("text");
+
+			m_searches.Add(item);
+
+			ItemElement = ItemElement->NextSiblingElement();
+		}
+	}
+}
+
+void CSymbolEdit::AddToSearchHistory()
+{
+	CString cs;
+	this->GetWindowText(cs);
+	if (cs != _T(""))
+	{
+		if (m_searches.GetCount() >= LIST_MAX_COUNT)
+		{
+			m_searches.RemoveAt(0);
+		}
+
+		bool existing = false;
+		int count = m_searches.GetCount();
+		for (int i = 0; i < count; i++)
+		{
+			if (m_searches[i] == cs)
+			{
+				m_searches.RemoveAt(i);
+				m_searches.Add(cs);
+				existing = true;
+				break;
+			}
+		}
+
+		if (existing == false)
+		{
+			m_searches.Add(cs);
+		}
+	}
+}
+
+bool CSymbolEdit::ShowSearchHistoryMenu()
+{
+	if (m_searches.GetCount() == 0)
+	{
+		return false;
+	}
+
+	CMenu cmPopUp;
+	cmPopUp.CreatePopupMenu();
+
+	int count = min(m_searches.GetCount(), LIST_MAX_COUNT);
+	for (int i = count-1; i >= 0; i--)
+	{
+		CString text = m_searches[i];
+
+		if (i == count - 1 &&
+			m_lastSearchShortCut.Key > 0)
+		{
+			CString cmdShortcutText = CHotKey::GetHotKeyDisplayStatic(m_lastSearchShortCut.Key);
+			if (m_lastSearchShortCut.Key2 != 0)
+			{
+				CString cmdShortcutText2 = CHotKey::GetHotKeyDisplayStatic(m_lastSearchShortCut.Key2);
+
+				if (cmdShortcutText2.GetLength() > 0)
+				{
+					cmdShortcutText += _T(" - ");
+					cmdShortcutText += cmdShortcutText2;
+				}
+			}
+
+			text += "\t";
+			text += cmdShortcutText;
+		}
+
+		cmPopUp.AppendMenuW(MF_STRING, (RANGE_START + i), text);
+	}
+
+	cmPopUp.AppendMenu(MF_SEPARATOR);
+	cmPopUp.AppendMenuW(MF_STRING, CLEAR_LIST, _T("Clear List"));
+
+	CRect windowRect;
+	this->GetWindowRect(&windowRect);
+	POINT pp;
+	GetCursorPos(&pp);
+	POINT x = this->GetCaretPos();
+	ClientToScreen(&x);
+	x.y += windowRect.Height();
+
+	cmPopUp.TrackPopupMenu(TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON, x.x, x.y, this, NULL);
+	
+	Invalidate();
+	
+	return true;
 }
 
 void CSymbolEdit::DestroyIcon()
@@ -229,7 +410,7 @@ void CSymbolEdit::RecalcLayout()
 	}
 	else
 	{
-		SetMargins(4, 24);
+		SetMargins(4, theApp.m_metrics.ScaleX(34));
 	}
 }
 
@@ -249,9 +430,7 @@ void CSymbolEdit::OnPaint()
 	textRect.right -= HIWORD(margins);
 
 	// Clearing the background
-	dc.FillSolidRect(rect, GetSysColor(COLOR_WINDOW));
-
-	
+	dc.FillSolidRect(rect, GetSysColor(COLOR_WINDOW));	
 
 	if (m_hSymbolIcon)
 	{
@@ -295,7 +474,7 @@ void CSymbolEdit::OnPaint()
 		COLORREF oldColor = dc.GetTextColor();
 		dc.SetTextColor(g_Opt.m_Theme.SearchTextBoxFocusText());
 			
-		dc.DrawText(text, textRect, DT_SINGLELINE | DT_INTERNAL | DT_EDITCONTROL);
+		dc.DrawText(text, textRect, DT_SINGLELINE | DT_INTERNAL | DT_EDITCONTROL | DT_NOPREFIX);
 
 		dc.SelectObject(oldFont);
 		dc.SetTextColor(oldColor);
@@ -308,22 +487,42 @@ void CSymbolEdit::OnPaint()
 
 	if (text.GetLength() == 0 && m_strPromptText.GetLength() > 0)
 	{
+		//if we aren't showing the close icon, then use the full space
+		textRect.right += theApp.m_metrics.ScaleX(16);
+		//textRect.right -= LOWORD(margins);
+
 		oldFont = dc.SelectObject(&m_fontPrompt);
 		COLORREF color = dc.GetTextColor();
 		dc.SetTextColor(m_colorPromptText);
 
-		dc.DrawText(m_strPromptText, textRect, DT_LEFT | DT_SINGLELINE | DT_EDITCONTROL | DT_VCENTER);
+		dc.DrawText(m_strPromptText, textRect, DT_LEFT | DT_SINGLELINE | DT_EDITCONTROL | DT_VCENTER | DT_NOPREFIX);
 		dc.SetTextColor(color);
 		dc.SelectObject(oldFont);
 	}
 
+	int right = rect.right;
+	if ((text.GetLength() > 0 || this == GetFocus()))
+	{
+		m_searchesButtonRect.SetRect(rect.right - theApp.m_metrics.ScaleX(18), 0, rect.right, rect.bottom);
+		right = rect.right - theApp.m_metrics.ScaleX(18);
+		m_searchesButton.Draw(&dc, this, m_searchesButtonRect.left, 4, m_mouseHoveringOverSearches, m_mouseDownOnSearches);
+	}
+	else
+	{
+		m_searchesButtonRect.SetRect(0, 0, 0, 0);
+		//m_searchButton.Draw(&dc, this, rect.right - 22, 4, false, false);
+	}
+
 	if (text.GetLength() > 0)
 	{
-		m_closeButtonRect.SetRect(rect.right - 22, 0, rect.right, rect.bottom);
+		OutputDebugString(_T("showing close button\n"));
+
+		m_closeButtonRect.SetRect(right - theApp.m_metrics.ScaleX(16), 0, right, rect.bottom);
 		m_closeButton.Draw(&dc, this, m_closeButtonRect.left, 4, m_mouseHoveringOverClose, m_mouseDownOnClose);
 	}
 	else
 	{
+		OutputDebugString(_T("not showing close button\n"));
 		m_closeButtonRect.SetRect(0, 0, 0, 0);
 		//m_searchButton.Draw(&dc, this, rect.right - 22, 4, false, false);
 	}
@@ -352,8 +551,9 @@ HBRUSH CSymbolEdit::CtlColor(CDC* pDC, UINT n)
 {
 	if (::GetFocus() == m_hWnd)
 	{
-		pDC->SetBkColor(RGB(255, 255, 255));
-		return CreateSolidBrush(RGB(255, 255, 255));
+		pDC->SetTextColor(g_Opt.m_Theme.SearchTextBoxFocusText());
+		pDC->SetBkColor(g_Opt.m_Theme.SearchTextBoxFocusBG());
+		return CreateSolidBrush(g_Opt.m_Theme.SearchTextBoxFocusBG());
 	}
 	else
 	{
@@ -366,10 +566,21 @@ void CSymbolEdit::OnSetFocus(CWnd* pOldWnd)
 {
 	Invalidate(FALSE);
 	CEdit::OnSetFocus(pOldWnd);
+
+	CWnd *pWnd = GetParent();
+	if (pWnd)
+	{
+		if (g_Opt.m_bFindAsYouType)
+		{
+			pWnd->SendMessage(NM_FOCUS_ON_SEARCH, 0, 0);
+		}
+	}
 }
 
 void CSymbolEdit::OnKillFocus(CWnd* pNewWnd)
 {
+	AddToSearchHistory();
+
 	Invalidate(FALSE);
 	CEdit::OnKillFocus(pNewWnd);
 }
@@ -387,6 +598,13 @@ BOOL CSymbolEdit::OnSetCursor(CWnd* pWnd, UINT nHitTest, UINT message)
 		return TRUE;
 	}
 
+	if (m_searchesButtonRect.PtInRect(pntCursor))
+	{
+		HCURSOR h = ::LoadCursor(NULL, IDC_ARROW);
+		::SetCursor(h);
+		return TRUE;
+	}
+
 	return CEdit::OnSetCursor(pWnd, nHitTest, message);
 }
 
@@ -398,7 +616,14 @@ void CSymbolEdit::OnLButtonUp(UINT nFlags, CPoint point)
 		InvalidateRect(m_closeButtonRect);
 	}
 
+	if (m_mouseDownOnSearches)
+	{
+		ReleaseCapture();
+		InvalidateRect(m_searchesButtonRect);
+	}
+
 	m_mouseDownOnClose = false;
+	m_mouseDownOnSearches = false;
 
 	if (m_closeButtonRect.PtInRect(point))
 	{
@@ -411,6 +636,11 @@ void CSymbolEdit::OnLButtonUp(UINT nFlags, CPoint point)
 			}
 		}		
 	}	
+
+	if (m_searchesButtonRect.PtInRect(point))
+	{
+		this->ShowSearchHistoryMenu();
+	}
 
 	CEdit::OnLButtonUp(nFlags, point);
 }
@@ -426,6 +656,17 @@ void CSymbolEdit::OnLButtonDown(UINT nFlags, CPoint point)
 	else
 	{
 		m_mouseDownOnClose = false;
+	}
+
+	if (m_searchesButtonRect.PtInRect(point))
+	{
+		m_mouseDownOnSearches = true;
+		SetCapture();
+		InvalidateRect(m_searchesButtonRect);
+	}
+	else
+	{
+		m_mouseDownOnSearches = false;
 	}
 
 	CEdit::OnLButtonDown(nFlags, point);
@@ -447,5 +688,62 @@ void CSymbolEdit::OnMouseMove(UINT nFlags, CPoint point)
 		InvalidateRect(m_closeButtonRect);
 	}
 
+	if (m_searchesButtonRect.PtInRect(point))
+	{
+		if (m_mouseHoveringOverSearches == false)
+		{
+			m_mouseHoveringOverSearches = true;
+			InvalidateRect(m_searchesButtonRect);
+		}
+	}
+	else if (m_mouseHoveringOverSearches)
+	{
+		m_mouseHoveringOverSearches = false;
+		InvalidateRect(m_searchesButtonRect);
+	}
+
 	CEdit::OnMouseMove(nFlags, point);
+}
+
+void CSymbolEdit::OnSelectSearchString(UINT idIn)
+{
+	int index = idIn - RANGE_START;
+
+	if (idIn == CLEAR_LIST)
+	{
+		m_searches.RemoveAll();
+	}
+	else if (index >= 0 &&
+		index < m_searches.GetCount())
+	{
+		CString cs = m_searches[index];
+		this->SetWindowTextW(cs);
+
+		this->SetFocus();
+		this->SetSel(-1);
+
+		this->Invalidate();
+
+		m_searches.RemoveAt(index);
+		m_searches.Add(cs);
+	}
+}
+
+bool CSymbolEdit::ApplyLastSearch()
+{
+	bool ret = false;
+	if (m_searches.GetCount() > 0)
+	{
+		CString cs = m_searches[m_searches.GetCount()-1];
+		this->SetWindowTextW(cs);
+
+		this->SetFocus();
+		this->SetSel(-1);
+
+		this->Invalidate();
+
+		ret = true;
+	}
+
+	return ret;
 }

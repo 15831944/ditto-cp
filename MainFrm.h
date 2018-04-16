@@ -22,6 +22,7 @@
 #define GROUP_DOUBLE_CLICK				13
 #define CLOSE_POPUP_MSG_WND				14
 #define SCREEN_RESOLUTION_CHANGED		15
+#define DELAYED_SHOW_DITTO_TIMER		16
 
 class CMainFrame: public CFrameWnd
 {
@@ -72,7 +73,6 @@ public:
 	int m_doubleClickGroupId;
 	DWORD m_doubleClickGroupStartTime;
 	CPowerManager m_PowerManager;
-	CDittoPopupWindow *m_pPopupWindow;
 
     void DoDittoCopyBufferPaste(int nCopyBuffer);
     void DoFirstTenPositionsPaste(int nPos);
@@ -106,6 +106,7 @@ protected:
     afx_msg void OnFirstHelp();
     //}}AFX_MSG
     afx_msg LRESULT OnHotKey(WPARAM wParam, LPARAM lParam);
+	void ShowQPasteWithActiveWindowCheck();
     afx_msg LRESULT OnShowTrayIcon(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnClipboardCopied(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnAddToDatabaseFromSocket(WPARAM wParam, LPARAM lParam);

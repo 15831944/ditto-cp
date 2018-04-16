@@ -41,6 +41,7 @@
 #define NM_NEW_GROUP				WM_USER+0x126
 #define NM_DELETE_ID				WM_USER+0x127
 #define NM_MOVE_TO_GROUP			WM_USER+0x128
+#define NM_FOCUS_ON_SEARCH			WM_USER+0x129
 
 
 
@@ -130,10 +131,17 @@ public:
 
 	void DestroyAndCreateAccelerator(BOOL bCreate, CppSQLite3DB &db);
 
+	bool PostEventLoadedCheckDescription(int updatedRow);
 	bool ShowFullDescription(bool bFromAuto = false, bool fromNextPrev = false);
 	BOOL SetItemCountEx(int iCount, DWORD dwFlags = 0);
 
-	void HidePopup();
+	void HidePopup(bool checkShowPersistant);
+	void ToggleToolTipShowPersistant();
+	bool ToggleToolTipWordWrap();
+	void SetTooltipActions(CAccels *pToolTipActions) { m_pToolTipActions = pToolTipActions; }
+	bool IsToolTipShowPersistant();
+	void DoToolTipSearch();
+	void HideToolTip();
 
 	void SetLogFont(LOGFONT &font);
 
@@ -143,7 +151,8 @@ public:
 
 	BOOL OnItemDeleted(long lID);
 
-	BOOL IsToolTipWindowVisible() { return ::IsWindowVisible(m_toolTipHwnd); }
+	BOOL IsToolTipWindowVisible();
+	BOOL IsToolTipWindowFocus();
 
 	int GetRowHeight() { return m_rowHeight; }
 
@@ -180,6 +189,8 @@ protected:
 	int m_rowHeight;
 	CString m_searchText;
 	BOOL m_showIfClipWasPasted;
+	CAccels *m_pToolTipActions;
+	CRichEditCtrlEx m_rtfFormater;
 
 
 	// Generated message map functions
@@ -194,7 +205,6 @@ protected:
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnSelectionChange(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
-	afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
 	//}}AFX_MSG
 	afx_msg BOOL OnToolTipText(UINT id, NMHDR * pNMHDR, LRESULT * pResult);
 	afx_msg void MeasureItem(LPMEASUREITEMSTRUCT lpMeasureItemStruct);

@@ -53,6 +53,8 @@ public:
 	virtual void Data(HGLOBAL data) { m_hgData = data; }
 	virtual void AutoDeleteData(bool autoDeleteData) { m_autoDeleteData = autoDeleteData; }
 	virtual bool AutoDeleteData()	{ return m_autoDeleteData; }
+
+	Gdiplus::Bitmap *CreateGdiplusBitmap();
 };
 
 /*----------------------------------------------------------------------------*\
@@ -125,18 +127,21 @@ public:
 
 	void Clear();
 	void EmptyFormats();
-	bool AddFormat(CLIPFORMAT cfType, void* pData, UINT nLen);
-	bool LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore = true);
+	bool AddFormat(CLIPFORMAT cfType, void* pData, UINT nLen, bool setDesc = false);
+	int LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore = true, CString activeApp = _T(""));
 	bool SetDescFromText(HGLOBAL hgData, bool unicode);
 	bool SetDescFromType();
 	bool AddToDB(bool bCheckForDuplicates = true);
 	bool ModifyMainTable();
+	bool ModifyDescription();
 	bool SaveFromEditWnd(BOOL bUpdateDesc);
 	void MakeLatestOrder();
 	void MakeLatestGroupOrder();
+	void MakeLastOrder();
+	void MakeLastGroupOrder();
 	void MakeStickyTop(int parentId);
 	void MakeStickyLast(int parentId);
-	void RemoveStickySetting(int parentId);
+	bool RemoveStickySetting(int parentId);
 	BOOL LoadMainTable(int id);
 	DWORD GenerateCRC();
 	void MoveUp(int parentId);
@@ -146,6 +151,7 @@ public:
 	CStringA GetCFTextTextFormat();
 
 	BOOL WriteTextToFile(CString path, BOOL unicode, BOOL asci, BOOL utf8);
+	BOOL WriteImageToFile(CString path);
 
 	// Allocates a Global containing the requested Clip's Format Data
 	static HGLOBAL LoadFormat(int id, UINT cfType);
@@ -155,8 +161,13 @@ public:
 	static void LoadTypes(int id, CClipTypes& types);
 
 	static double GetNewOrder(int parentId, int clipId);
+	double GetNewLastOrder(int parentId, int clipId);
 	static double GetNewTopSticky(int parentId, int clipId);
 	static double GetNewLastSticky(int parentId, int clipId);
+
+	bool AddFileDataToData(CString &errorMessage);
+
+	Gdiplus::Bitmap *CreateGdiplusBitmap();
 	
 protected:
 	bool AddToMainTable();

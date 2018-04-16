@@ -25,7 +25,7 @@
 
 extern class CCP_MainApp theApp;
 
-#define BORDER 2 
+#define BORDER theApp.m_metrics.ScaleX(2) 
 #define CAPTION_BORDER theApp.m_metrics.ScaleX(25)
 
 class CCP_MainApp : public CWinApp
@@ -103,7 +103,7 @@ public:
 	CClipTypes* LoadTypesFromDB(); // returns a "new" allocated object
 	void ReloadTypes();
 	void RefreshView(); // refreshes the view if it is visible
-	void RefreshClipAfterPaste(int clipId);
+	void RefreshClipAfterPaste(int clipId, int updateFlags);
 	void OnCopyCompleted( long lLastID, int count = 1 );
 	void OnPasteCompleted();
 
@@ -164,6 +164,9 @@ public:
 	CLIPFORMAT m_HTML_Format;
 	CLIPFORMAT m_RemoteCF_HDROP;
 	CLIPFORMAT m_RTFFormat;
+	CLIPFORMAT m_DittoFileData;
+	CLIPFORMAT m_PNG_Format;
+
 
 	COleDateTime m_oldtStartUp;
 

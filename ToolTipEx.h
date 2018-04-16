@@ -1,20 +1,12 @@
-#if !defined(AFX_ToolTipEx_H__5796127D_8817_493F_ACA7_8741A6759DD3__INCLUDED_)
-#define AFX_ToolTipEx_H__5796127D_8817_493F_ACA7_8741A6759DD3__INCLUDED_
-
-#if _MSC_VER > 1000
 #pragma once
-#endif // _MSC_VER > 1000
-// ToolTipEx.h : header file
-//
+
 #include "RichEditCtrlEx.h"
 #include "WndEx.h"
 #include "DittoWindow.h"
 #include "GdipButton.h"
 #include "ImageViewer.h"
-/////////////////////////////////////////////////////////////////////////////
-// CToolTipEx window
-
-#define HIDE_WINDOW_TIMER 1
+#include "GroupStatic.h"
+#include "Accels.h"
 
 class CToolTipEx : public CWnd
 {
@@ -32,16 +24,33 @@ public:
 	BOOL Show(CPoint point);
 	BOOL Hide();
 	void SetToolTipText(const CString &csText);
-//	void SetRTFText(const CString &csRTF);
 	void SetRTFText(const char *pRTF);
-	void SetBitmap(CBitmap *pBitmap);
+	void SetGdiplusBitmap(Gdiplus::Bitmap *gdiplusBitmap);
 	void SetNotifyWnd(CWnd *pNotify)		{ m_pNotifyWnd = pNotify;	}
-	void HideWindowInXMilliSeconds(long lms)	{ SetTimer(HIDE_WINDOW_TIMER, lms, NULL); }
+	void HideWindowInXMilliSeconds(long lms);
 	CRect GetBoundsRect();
 
 	void SetClipId(int clipId) { m_clipId = clipId; }
 	int GetClipId() { return m_clipId; }
+
+	void SetClipRow(int clipRow) { m_clipRow = clipRow; }
+	int GetClipRow() { return m_clipRow; }
+
 	void SetSearchText(CString text) { m_searchText = text; }
+
+	void SetClipData(CString data) { m_clipData = data; }
+
+	bool GetShowPersistant() { return m_showPersistant; }
+	void ToggleShowPersistant() { OnFirstAlwaysontop(); }
+	bool ToggleWordWrap();
+	void SetTooltipActions(CAccels *pToolTipActions) { m_pToolTipActions = pToolTipActions; }
+
+	void GetWindowRectEx(LPRECT lpRect);
+
+	void UpdateMenuShortCut(CMenu *subMenu, int id, DWORD action);
+
+	void DoSearch();
+
 
 // Overrides
 	// ClassWizard generated virtual function overrides
@@ -69,11 +78,17 @@ protected:
 	CString m_searchText;
 	CScrollBar m_vScroll;
 	CScrollBar m_hScroll;
-
 	CDittoWindow m_DittoWindow;
-
 	CImageViewer m_imageViewer;
-
+	CGroupStatic m_clipDataStatic;
+	CString m_clipData;
+	CFont m_clipDataFont;
+	bool m_saveWindowLockout;
+	int m_clipRow;
+	bool m_showPersistant;
+	CAccels *m_pToolTipActions;
+	bool m_bMaxSetTimer;
+	int m_lDelayMaxSeconds;
 	
 
 protected:
@@ -81,9 +96,9 @@ protected:
 	BOOL SetLogFont(LPLOGFONT lpLogFont, BOOL bRedraw /*=TRUE*/);
 	LPLOGFONT GetSystemToolTipFont();
 	BOOL IsCursorInToolTip();
-	void HighlightSearchText();
-	void DoSearch();
+	void HighlightSearchText();	
 	void ApplyWordWrap();
+	void SaveWindowSize();
 
 	// Generated message map functions
 protected:
@@ -97,6 +112,7 @@ protected:
 	afx_msg void OnNcCalcSize(BOOL bCalcValidRects, NCCALCSIZE_PARAMS FAR* lpncsp); 
 	afx_msg void OnNcPaint();
 	afx_msg void OnOptions();
+	afx_msg void OnWindowPosChanging(WINDOWPOS* lpwndpos);
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 public:
@@ -106,15 +122,11 @@ public:
 	afx_msg void OnScaleimagestofitwindow();
 	afx_msg void OnRButtonDown(UINT nFlags, CPoint point);
 	afx_msg void OnSetFocus(CWnd* pOldWnd);
-	afx_msg void OnPaint();
-	
+	afx_msg void OnPaint();	
 	afx_msg void OnFirstHidedescriptionwindowonm();
 	afx_msg void OnFirstWraptext();
+	afx_msg void OnNcLButtonDblClk(UINT nHitTest, CPoint point);
+	afx_msg void OnFirstAlwaysontop();
+	virtual BOOL OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pResult);
+	void OnEnMsgfilterRichedit21(NMHDR *pNMHDR, LRESULT *pResult);
 };
-
-/////////////////////////////////////////////////////////////////////////////
-
-//{{AFX_INSERT_LOCATION}}
-// Microsoft Visual C++ will insert additional declarations immediately before the previous line.
-
-#endif // !defined(AFX_ToolTipEx_H__5796127D_8817_493F_ACA7_8741A6759DD3__INCLUDED_)

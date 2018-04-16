@@ -127,6 +127,8 @@ CCP_MainApp::CCP_MainApp()
 	m_cfIgnoreClipboard = ::RegisterClipboardFormat(_T("Clipboard Viewer Ignore"));
 	m_cfDelaySavingData = ::RegisterClipboardFormat(_T("Ditto Delay Saving Data"));
 	m_RemoteCF_HDROP = ::RegisterClipboardFormat(_T("Ditto Remote CF_HDROP"));
+	m_DittoFileData = ::RegisterClipboardFormat(_T("Ditto File Data"));
+	m_PNG_Format = GetFormatID(_T("PNG"));
 }
 
 CCP_MainApp::~CCP_MainApp()
@@ -135,16 +137,22 @@ CCP_MainApp::~CCP_MainApp()
 }
 
 BOOL CCP_MainApp::InitInstance()
-{
-	LoadLibrary(TEXT("riched20.dll"));
+{	
+	INITCOMMONCONTROLSEX InitCtrls;
+	InitCtrls.dwSize = sizeof(InitCtrls);
+	// Set this to include all the common control classes you want to use
+	// in your application.
+	InitCtrls.dwICC = ICC_WIN95_CLASSES;
+	InitCommonControlsEx(&InitCtrls);
 
 	AfxEnableControlContainer();
 	AfxOleInit();
-	AfxInitRichEditEx();
-	afxAmbientActCtx = FALSE; 
+	AfxInitRichEditEx();	
 
 	Gdiplus::GdiplusStartupInput gdiplusStartupInput;
 	Gdiplus::GdiplusStartup(&m_gdiplusToken, &gdiplusStartupInput, NULL);
+
+	LoadLibrary(TEXT("MSFTEDIT.DLL"));
 
 	//MessageBox(NULL, _T("ditto starting"), _T("d"), MB_OK);
 
@@ -288,7 +296,7 @@ BOOL CCP_MainApp::InitInstance()
 
 		m_Language.LoadLanguageFile(_T("English.xml"));
 	}
-
+	
 	int nRet = CheckDBExists(CGetSetOptions::GetDBPath());
 	if(nRet == FALSE)
 	{
@@ -557,18 +565,18 @@ void CCP_MainApp::RefreshView()
 	}
 }
 
-void CCP_MainApp::RefreshClipAfterPaste(int clipId)
+void CCP_MainApp::RefreshClipAfterPaste(int clipId, int updateFlags)
 {
 	CQPasteWnd *pWnd = QPasteWnd();
 	if(pWnd)
 	{
 		if(m_bAsynchronousRefreshView)
 		{
-			pWnd->PostMessage(WM_RELOAD_CLIP_AFTER_PASTE, clipId, 0);
+			pWnd->PostMessage(WM_RELOAD_CLIP_AFTER_PASTE, clipId, updateFlags);
 		}
 		else
 		{
-			pWnd->SendMessage(WM_RELOAD_CLIP_AFTER_PASTE, clipId, 0);
+			pWnd->SendMessage(WM_RELOAD_CLIP_AFTER_PASTE, clipId, updateFlags);
 		}
 	}
 }
@@ -867,10 +875,15 @@ void CCP_MainApp::SetConnectCV(bool bConnect)
 	if(bConnect)
 	{
 		m_pMainFrame->m_trayIcon.SetIcon(IDR_MAINFRAME);
+		m_pMainFrame->m_trayIcon.SetTooltipText(_T("Ditto"));
 	}
 	else
 	{
 		m_pMainFrame->m_trayIcon.SetIcon(IDI_DITTO_NOCOPYCB);
+		CString cs;
+		cs = _T("Ditto ");
+		cs += theApp.m_Language.GetString("disconnected", "[Disconnected]");
+		m_pMainFrame->m_trayIcon.SetTooltipText(cs);
 	}
 
 	if(QPasteWnd())

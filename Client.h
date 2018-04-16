@@ -20,9 +20,9 @@ public:
 	CSendToFriendInfo()
 	{
 		m_pPopup = NULL;
-		m_pos = -1;
 		m_pClipList = NULL;
 		m_pPopup = NULL;
+		m_manualSend = false;
 	}
 	~CSendToFriendInfo()
 	{
@@ -34,10 +34,10 @@ public:
 	}
 
 	CClipList *m_pClipList;
-	int m_pos;
 	CString m_csIP;
 	CPopup *m_pPopup;
 	CString m_csErrorText;
+	bool m_manualSend;
 };
 
 class CClient  
@@ -46,7 +46,7 @@ public:
 	CClient();
 	virtual ~CClient();
 
-	BOOL SendItem(CClip *pClip);
+	BOOL SendItem(CClip *pClip, bool manualSend);
 	
 	BOOL OpenConnection(const TCHAR* servername);
 	BOOL CloseConnection();

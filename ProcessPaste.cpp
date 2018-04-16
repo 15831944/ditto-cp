@@ -24,62 +24,128 @@ CProcessPaste::~CProcessPaste()
 
 BOOL CProcessPaste::DoPaste()
 {
-	m_pOle->m_pasteOptions = m_pasteOptions;
+	BOOL ret = FALSE;
 
-	if(m_pOle->DoImmediateRender())
+	try
 	{
-		// MarkAsPasted() must be done first since it makes use of
-		//  m_pOle->m_ClipIDs and m_pOle is inaccessible after
-		//  SetClipboard is called.
-		MarkAsPasted();
-		
-		// Ignore the clipboard change that we will cause IF:
-		// 1) we are pasting a single element, since the element is already
-		//    in the db and its lDate was updated by MarkAsPas???ted().
-		// OR
-		// 2) we are pasting multiple, but g_Opt.m_bSaveMultiPaste is false
-		if(GetClipIDs().GetSize() == 1 || !g_Opt.m_bSaveMultiPaste)
-		{
-			m_pOle->CacheGlobalData(theApp.m_cfIgnoreClipboard, NewGlobalP("Ignore", sizeof("Ignore")));
-		}
-		else
-		{
-			m_pOle->CacheGlobalData(theApp.m_cfDelaySavingData, NewGlobalP("Delay", sizeof("Delay")));
-		}
-		
-		m_pOle->SetClipboard(); // m_pOle is now managed by the OLE clipboard
+		m_pOle->m_pasteOptions = m_pasteOptions;
 
-		// The Clipboard now owns the allocated memory
-		// and will delete this data object
-		// when new data is put on the Clipboard
-		m_pOle = NULL; // m_pOle should not be accessed past this point
+		if (m_pOle->DoImmediateRender())
+		{
+			// MarkAsPasted() must be done first since it makes use of
+			//  m_pOle->m_ClipIDs and m_pOle is inaccessible after
+			//  SetClipboard is called.
+			MarkAsPasted();
 
-		if(m_bSendPaste)
-		{
-			Log(_T("Sending Paste to active window"));
-			theApp.m_activeWnd.SendPaste(m_bActivateTarget);
+			// Ignore the clipboard change that we will cause IF:
+			// 1) we are pasting a single element, since the element is already
+			//    in the db and its lDate was updated by MarkAsPas???ted().
+			// OR
+			// 2) we are pasting multiple, but g_Opt.m_bSaveMultiPaste is false
+			if (GetClipIDs().GetSize() == 1 || !g_Opt.m_bSaveMultiPaste)
+			{
+				m_pOle->CacheGlobalData(theApp.m_cfIgnoreClipboard, NewGlobalP("Ignore", sizeof("Ignore")));
+			}
+			else
+			{
+				m_pOle->CacheGlobalData(theApp.m_cfDelaySavingData, NewGlobalP("Delay", sizeof("Delay")));
+			}
+
+			m_pOle->SetClipboard(); // m_pOle is now managed by the OLE clipboard
+
+			// The Clipboard now owns the allocated memory
+			// and will delete this data object
+			// when new data is put on the Clipboard
+			m_pOle = NULL; // m_pOle should not be accessed past this point
+
+			if (m_bSendPaste)
+			{
+				Log(_T("Sending Paste to active window"));
+				theApp.m_activeWnd.SendPaste(m_bActivateTarget);
+			}
+			else if (m_bActivateTarget)
+			{
+				Log(_T("Activating active window"));
+				theApp.m_activeWnd.ActivateTarget();
+			}
+
+			ret = TRUE;
 		}
-		else if(m_bActivateTarget)
-		{
-			Log(_T("Activating active window"));
-			theApp.m_activeWnd.ActivateTarget();
-		}
-		
-		return TRUE;
 	}
-	return FALSE;
+	catch (CException *ex)
+	{
+		TCHAR szCause[255];
+		ex->GetErrorMessage(szCause, 255);
+		m_lastErrorMessage.Format(_T("Paste exception: %s"), szCause);
+		Log(m_lastErrorMessage);
+	}
+	catch (...) 
+	{
+		m_lastErrorMessage = _T("Paste generic exception");
+		Log(m_lastErrorMessage);
+	}
+
+	// The Clipboard now owns the allocated memory
+	// and will delete this data object
+	// when new data is put on the Clipboard
+	m_pOle = NULL; // m_pOle should not be accessed past this point
+
+	return ret;
 }
 
 BOOL CProcessPaste::DoDrag()
 {
-	m_pOle->DoDelayRender();
-	DROPEFFECT de = m_pOle->DoDragDrop(DROPEFFECT_COPY);
-	if(de != DROPEFFECT_NONE)
+	BOOL ret = FALSE;
+	try
 	{
-		MarkAsPasted();
-		return TRUE;
+		m_pOle->m_pasteOptions = m_pasteOptions;
+		m_pOle->DoDelayRender();
+		DROPEFFECT de = m_pOle->DoDragDrop(DROPEFFECT_COPY);
+		if (de != DROPEFFECT_NONE)
+		{
+			MarkAsPasted();
+			ret = TRUE;
+		}		
 	}
-	return FALSE;
+	catch (CException *ex)
+	{
+		TCHAR szCause[255];
+		ex->GetErrorMessage(szCause, 255);
+		m_lastErrorMessage.Format(_T("Drag drop exception: %s"), szCause);
+		Log(m_lastErrorMessage);
+	}
+	catch (...)
+	{
+		m_lastErrorMessage = _T("Drag drop generic exception");
+		Log(m_lastErrorMessage);
+	}
+
+	try
+	{
+		//from https://www.codeproject.com/Articles/886711/Drag-Drop-Images-and-Drop-Descriptions-for-MFC-App
+		//You may have noted the InternalRelease() function call.This is required here to delete the object.While it is possible to use 
+		//delete or create the object on the stack with Drag & Drop operations, it is not recommended to do so.
+		m_pOle->InternalRelease();
+	}
+	catch (CException *ex)
+	{
+		TCHAR szCause[255];
+		ex->GetErrorMessage(szCause, 255);
+		m_lastErrorMessage.Format(_T("Drag drop exception 2: %s"), szCause);
+		Log(m_lastErrorMessage);
+	}
+	catch (...)
+	{
+		m_lastErrorMessage = _T("Drag drop generic exception 2");
+		Log(m_lastErrorMessage);
+	}
+
+	// The Clipboard now owns the allocated memory
+	// and will delete this data object
+	// when new data is put on the Clipboard
+	m_pOle = NULL; // m_pOle should not be accessed past this point
+
+	return ret;
 }
 
 void CProcessPaste::MarkAsPasted()
@@ -87,18 +153,19 @@ void CProcessPaste::MarkAsPasted()
 	Log(_T("start of MarkAsPasted"));
 
 	CClipIDs& clips = GetClipIDs();
-	if(clips.GetSize() == 1)
+	
+	CGetSetOptions::SetTripPasteCount(-1);
+	CGetSetOptions::SetTotalPasteCount(-1);
+
+	MarkAsPastedData* pData = new MarkAsPastedData();
+	for (int i = 0; i < clips.GetCount(); i++)
 	{
-		CGetSetOptions::SetTripPasteCount(-1);
-		CGetSetOptions::SetTotalPasteCount(-1);
-
-		MarkAsPastedData* pData = new MarkAsPastedData();
-		pData->clipId = clips.ElementAt(0);
-		pData->pastedFromGroup = m_pastedFromGroup;
-
-		//Moved to a thread because when running from from U3 devices the write is time consuming
-		AfxBeginThread(CProcessPaste::MarkAsPastedThread, (LPVOID)pData, THREAD_PRIORITY_LOWEST);
+		pData->ids.Add(clips.ElementAt(i));
 	}
+	pData->pastedFromGroup = m_pastedFromGroup;
+
+	//Moved to a thread because when running from from U3 devices the write is time consuming
+	AfxBeginThread(CProcessPaste::MarkAsPastedThread, (LPVOID)pData, THREAD_PRIORITY_LOWEST);
 
 	Log(_T("End of MarkAsPasted"));
 }
@@ -120,50 +187,79 @@ UINT CProcessPaste::MarkAsPastedThread(LPVOID pParam)
 		MarkAsPastedData* pData = (MarkAsPastedData*)pParam;
 		if(pData)
 		{
-			clipId = pData->clipId;
-			if(g_Opt.m_bUpdateTimeOnPaste)
+			int clipCount = pData->ids.GetCount();
+
+			if(g_Opt.m_bUpdateTimeOnPaste && 
+				clipCount == 1)
 			{
-				try
+				for (int i = 0; i < clipCount; i++)
 				{
-					if(pData->pastedFromGroup)
+					int id = pData->ids.ElementAt(i);
+					try
 					{
-						CppSQLite3Query q = theApp.m_db.execQuery(_T("SELECT clipGroupOrder FROM Main ORDER BY clipGroupOrder DESC LIMIT 1"));
-
-						if(q.eof() == false)
+						if (pData->pastedFromGroup)
 						{
-							double latestDate = q.getFloatField(_T("clipGroupOrder"));
-							latestDate += 1;
+							CppSQLite3Query q = theApp.m_db.execQuery(_T("SELECT clipGroupOrder FROM Main ORDER BY clipGroupOrder DESC LIMIT 1"));
 
-							Log(StrF(_T("Setting clipId: %d, GroupOrder: %f"), pData->clipId, latestDate));
+							if (q.eof() == false)
+							{
+								double latestDate = q.getFloatField(_T("clipGroupOrder"));
+								latestDate += 1;
 
-							theApp.m_db.execDMLEx(_T("UPDATE Main SET clipGroupOrder = %f where lID = %d;"), latestDate, pData->clipId);
+								Log(StrF(_T("Setting clipId: %d, GroupOrder: %f"), id, latestDate));
+
+								theApp.m_db.execDMLEx(_T("UPDATE Main SET clipGroupOrder = %f where lID = %d;"), latestDate, id);
+							}
+						}
+						else
+						{
+							CppSQLite3Query q = theApp.m_db.execQuery(_T("SELECT clipOrder FROM Main ORDER BY clipOrder DESC LIMIT 1"));
+
+							if (q.eof() == false)
+							{
+								double latestDate = q.getFloatField(_T("clipOrder"));
+								latestDate += 1;
+
+								Log(StrF(_T("Setting clipId: %d, order: %f"), id, latestDate));
+
+								theApp.m_db.execDMLEx(_T("UPDATE Main SET clipOrder = %f where lID = %d;"), latestDate, id);
+							}
 						}
 					}
-					else
-					{
-						CppSQLite3Query q = theApp.m_db.execQuery(_T("SELECT clipOrder FROM Main ORDER BY clipOrder DESC LIMIT 1"));
-
-						if(q.eof() == false)
-						{
-							double latestDate = q.getFloatField(_T("clipOrder"));
-							latestDate += 1;
-
-							Log(StrF(_T("Setting clipId: %d, order: %f"), pData->clipId, latestDate));
-
-							theApp.m_db.execDMLEx(_T("UPDATE Main SET clipOrder = %f where lID = %d;"), latestDate, pData->clipId);
-						}
-					}
+					CATCH_SQLITE_EXCEPTION
 				}
-				CATCH_SQLITE_EXCEPTION
 			}
 
 			try
 			{
-				theApp.m_db.execDMLEx(_T("UPDATE Main SET lastPasteDate = %d where lID = %d;"), (int)CTime::GetCurrentTime().GetTime(), pData->clipId);
+				for (int i = 0; i < clipCount; i++)
+				{
+					int id = pData->ids.ElementAt(i);
+					theApp.m_db.execDMLEx(_T("UPDATE Main SET lastPasteDate = %d where lID = %d;"), (int)CTime::GetCurrentTime().GetTime(), id);
+				}
 			}
 			CATCH_SQLITE_EXCEPTION
 
-			theApp.RefreshClipAfterPaste(pData->clipId);
+			int refreshFlags = 0;
+
+			//if multiple clips are selected then don't change selection
+			if (clipCount == 1)
+			{
+				refreshFlags |= UPDATE_AFTER_PASTE_SELECT_CLIP;
+			}
+
+			for (int i = 0; i < clipCount; i++)
+			{
+				int id = pData->ids.ElementAt(i);
+
+				//refresh the window on the last clip
+				if (i == clipCount - 1)
+				{
+					refreshFlags |= UPDATE_AFTER_PASTE_REFRESH_VISIBLE;
+				}
+
+				theApp.RefreshClipAfterPaste(id, refreshFlags);
+			}			
 
 			delete pData;
 			bRet = TRUE;

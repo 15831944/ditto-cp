@@ -95,7 +95,9 @@ BOOL CQuickPasteKeyboard::OnInitDialog()
 	m_mouseType1.SetCurSel(0);
 	m_mouseType2.SetCurSel(0);
 
-	SetWindowText(_T("Quick Paste Shortcuts"));
+	//SetWindowText(_T("Quick Paste Shortcuts"));
+
+	theApp.m_Language.UpdateOptionQuickPasteKeyboard(this);
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	// EXCEPTION: OCX Property Pages should return FALSE
@@ -105,8 +107,8 @@ void CQuickPasteKeyboard::InitListCtrlCols()
 {
 	m_list.SetExtendedStyle(LVS_EX_FULLROWSELECT);
 
-	m_list.InsertColumn(0, theApp.m_Language.GetGlobalHotKeyString("QPHotKey", "Hot Key"), LVCFMT_LEFT, 150);
-	m_list.InsertColumn(1, theApp.m_Language.GetGlobalHotKeyString("QPCommand", "Command"), LVCFMT_LEFT, 350);
+	m_list.InsertColumn(0, theApp.m_Language.GetString("QPHotKey", "Hot Key"), LVCFMT_LEFT, 150);
+	m_list.InsertColumn(1, theApp.m_Language.GetString("QPCommand", "Command"), LVCFMT_LEFT, 350);
 }
 
 void CQuickPasteKeyboard::LoadItems()
@@ -132,8 +134,6 @@ void CQuickPasteKeyboard::LoadItems()
 			for (int x = 0; x < 10; x++)
 			{
 				ar.Array[x].A = g_Opt.GetActionShortCutA(action, x);
-				if (ar.Array[x].A < 0)
-					break;
 				ar.Array[x].B = g_Opt.GetActionShortCutB(action, x);
 			}
 
@@ -151,6 +151,40 @@ void CQuickPasteKeyboard::LoadItems()
 
 			row++;
 		}
+	}
+
+	int dummyId = -1;
+
+	for (auto & element : g_Opt.m_pasteScripts.m_list)
+	{
+		// Insert the first item
+		lvi.mask = LVIF_TEXT;
+		lvi.iItem = (int)row;
+
+		KeyboardArray ar;
+		ar.m_refData = element.m_guid;
+		for (int x = 0; x < 10; x++)
+		{
+			ar.Array[x].A = g_Opt.GetActionShortCutA(ActionEnums::PASTE_SCRIPT, x, element.m_guid);
+			ar.Array[x].B = g_Opt.GetActionShortCutB(ActionEnums::PASTE_SCRIPT, x, element.m_guid);
+		}
+
+		CString shortCutText = GetShortCutText(ar);
+
+		lvi.iSubItem = 0;
+		lvi.pszText = (LPTSTR)(LPCTSTR)(shortCutText);
+		int x = m_list.InsertItem(&lvi);
+
+		CString col2 = ActionEnums::EnumDescription(ActionEnums::PASTE_SCRIPT);
+		col2 += _T(": ");
+		col2 += element.m_name;
+		m_list.SetItemText(row, 1, col2);
+
+		m_list.SetItemData(row, dummyId);
+		m_map[dummyId] = ar;
+
+		dummyId--;
+		row++;
 	}
 
 	SelectedRow(0);
@@ -229,6 +263,8 @@ void CQuickPasteKeyboard::OnLvnItemchangedList1(NMHDR *pNMHDR, LRESULT *pResult)
 
 		m_assignedCombo.ResetContent();
 
+		bool addedItem = false;
+
 		for (int i = 0; i < 10; i++)
 		{
 			if(m_map[id].Array[i].A > 0)
@@ -236,17 +272,16 @@ void CQuickPasteKeyboard::OnLvnItemchangedList1(NMHDR *pNMHDR, LRESULT *pResult)
 				CString shortcut = GetShortCutText(m_map[id].Array[i]);
 				int pos = m_assignedCombo.AddString(shortcut);
 				m_assignedCombo.SetItemData(pos, i);
+
+				addedItem = true;
 			}
-			else
-			{
-				if(i == 0)
-				{
-					CString shortcut;
-					int pos = m_assignedCombo.AddString(shortcut);
-					m_assignedCombo.SetItemData(pos, i);
-				}
-				break;
-			}
+		}
+
+		if (addedItem == false)
+		{
+			CString shortcut;
+			int pos = m_assignedCombo.AddString(shortcut);
+			m_assignedCombo.SetItemData(pos, 0);
 		}
 
 		m_assignedCombo.SetCurSel(0);
@@ -352,8 +387,14 @@ BOOL CQuickPasteKeyboard::OnApply()
 		{
 			if (it->second.Array[i].Dirty)
 			{
-				g_Opt.SetActionShortCutA(it->first, it->second.Array[i].A, i);
-				g_Opt.SetActionShortCutB(it->first, it->second.Array[i].B, i);
+				int actionEnum = it->first;
+				if (actionEnum < 0)
+				{
+					actionEnum = ActionEnums::PASTE_SCRIPT;
+				}
+
+				g_Opt.SetActionShortCutA(actionEnum, it->second.Array[i].A, i, it->second.m_refData);
+				g_Opt.SetActionShortCutB(actionEnum, it->second.Array[i].B, i, it->second.m_refData);
 				it->second.Array[i].Dirty = false;
 			}
 		}
@@ -398,25 +439,28 @@ void CQuickPasteKeyboard::OnBnClickedButtonRemove()
 			int pos = m_assignedCombo.AddString(shortcut);
 			m_assignedCombo.SetItemData(pos, 0);
 		}
-		else
+		/*else
 		{
-			for (int resetRow = shortCutId; resetRow < (10-1); resetRow++)
+			if (m_map[id].Array[shortCutId + 1].A > 0)
 			{
-				m_map[id].Array[resetRow].A = m_map[id].Array[resetRow+1].A;
-				m_map[id].Array[resetRow].B = m_map[id].Array[resetRow+1].B;
-				if (m_map[id].Array[resetRow].A > 0)
+				for (int resetRow = shortCutId; resetRow < (10 - 1); resetRow++)
 				{
-					m_map[id].Array[resetRow].Dirty = true;
-					m_map[id].Array[resetRow+1].Dirty = true;
+					m_map[id].Array[resetRow].A = m_map[id].Array[resetRow + 1].A;
+					m_map[id].Array[resetRow].B = m_map[id].Array[resetRow + 1].B;
+					if (m_map[id].Array[resetRow].A > 0)
+					{
+						m_map[id].Array[resetRow].Dirty = true;
+						m_map[id].Array[resetRow + 1].Dirty = true;
+					}
 				}
-			}
 
-			if (m_map[id].Array[9].A > 0)
-			{
-				m_map[id].Array[9].Dirty = true;
+				if (m_map[id].Array[9].A > 0)
+				{
+					m_map[id].Array[9].Dirty = true;
+				}
+				m_map[id].Array[9].A = -1;
+				m_map[id].Array[9].B = -1;
 			}
-			m_map[id].Array[9].A = -1;
-			m_map[id].Array[9].B = -1;
 
 			int comboCount = m_assignedCombo.GetCount();
 			for (int comboIndex = 0; comboIndex < comboCount; comboIndex++)
@@ -427,7 +471,7 @@ void CQuickPasteKeyboard::OnBnClickedButtonRemove()
 					m_assignedCombo.SetItemData(comboIndex, rowId-1);
 				}
 			}
-		}
+		}*/
 
 		CString sh = GetShortCutText(m_map[id]);
 		LVITEM lvi;
@@ -452,14 +496,22 @@ void CQuickPasteKeyboard::OnBnClickedButtonAdd()
 		int id = SelectedCommandId();
 		if (m_map.find(id) != m_map.end())
 		{
-			CString shortcut;
-			int pos = m_assignedCombo.AddString(shortcut);
-			m_assignedCombo.SetItemData(pos, count);
-			m_assignedCombo.SetCurSel(pos);
+			for (int i = 0; i < 10; i++)
+			{
+				if (m_map[id].Array[i].A <= 0)
+				{
+					CString shortcut;
+					int pos = m_assignedCombo.AddString(shortcut);
+					m_assignedCombo.SetItemData(pos, i);
+					m_assignedCombo.SetCurSel(pos);
 
-			LoadHotKey(m_map[id].Array[count]);
+					LoadHotKey(m_map[id].Array[i]);
 
-			m_hotKey1.SetFocus();
+					m_hotKey1.SetFocus();
+
+					break;
+				}
+			}
 		}
 	}
 }

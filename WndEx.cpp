@@ -19,11 +19,11 @@ static char THIS_FILE[] = __FILE__;
 #define CLOSE_HEIGHT		11
 #define CLOSE_BORDER		2
 #define TIMER_AUTO_MAX		5
+#define TIMER_BUTTON_UP		6
 
 CWndEx::CWndEx()
 {	
 	SetCaptionColorActive(false, TRUE);
-	m_crFullSizeWindow.SetRectEmpty();
 	m_lDelayMaxSeconds = 2;
 }
 
@@ -40,7 +40,7 @@ void CWndEx::GetWindowRectEx(LPRECT lpRect)
 {
 	if(m_DittoWindow.m_bMinimized)
 	{
-		*lpRect = m_crFullSizeWindow;
+		*lpRect = m_DittoWindow.m_crFullSizeWindow;
 		return;
 	}
 	
@@ -100,7 +100,7 @@ int CWndEx::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	m_DittoWindow.m_bDrawMaximize = false;
 
 	SetCaptionColorActive(false, TRUE);
-	m_DittoWindow.SetCaptionOn(this, CGetSetOptions::GetCaptionPos(), true);
+	m_DittoWindow.SetCaptionOn(this, CGetSetOptions::GetCaptionPos(), true, g_Opt.m_Theme.GetCaptionSize(), g_Opt.m_Theme.GetCaptionFontSize());
 	SetAutoMaxDelay(CGetSetOptions::GetAutoMaxDelay());
 
 	m_toolTip.Create(this);
@@ -137,9 +137,9 @@ bool CWndEx::SetCaptionColorActive(BOOL bPersistant, BOOL ConnectedToClipboard)
 	return bResult;
 }
 
-void CWndEx::SetCaptionOn(int nPos, bool bOnstartup)
+void CWndEx::SetCaptionOn(int nPos, bool bOnstartup, int captionSize, int captionFontSize)
 {
-	m_DittoWindow.SetCaptionOn(this, nPos, bOnstartup);
+	m_DittoWindow.SetCaptionOn(this, nPos, bOnstartup, captionSize, captionFontSize);
 }
 
 void CWndEx::OnNcPaint()
@@ -165,7 +165,12 @@ HITTEST_RET CWndEx::OnNcHitTest(CPoint point)
 
 void CWndEx::OnNcLButtonDown(UINT nHitTest, CPoint point) 
 {
-	m_DittoWindow.DoNcLButtonDown(this, nHitTest, point);
+	int buttonPressed = m_DittoWindow.DoNcLButtonDown(this, nHitTest, point);
+	
+	if (buttonPressed != 0)
+	{
+		SetTimer(TIMER_BUTTON_UP, 100, NULL);
+	}
 
 	CWnd::OnNcLButtonDown(nHitTest, point);
 }
@@ -177,130 +182,18 @@ void CWndEx::OnNcLButtonUp(UINT nHitTest, CPoint point)
 	{
 		if(lRet == BUTTON_CHEVRON)
 		{
-			MinMaxWindow();
+			MinMaxWindow(SWAP_MIN_MAX);
+			OnNcPaint();
 		}
 		return;
 	}
+
+	KillTimer(TIMER_BUTTON_UP);
 	
 	CWnd::OnNcLButtonUp(nHitTest, point);
 }
 
-void CWndEx::MinMaxWindow(long lOption)
-{
-	if((m_DittoWindow.m_bMinimized) && (lOption == FORCE_MIN))
-		return;
-	
-	if((m_DittoWindow.m_bMinimized == false) && (lOption == FORCE_MAX))
-		return;
-	
-	if(m_DittoWindow.m_lRightBorder == CAPTION_BORDER)
-	{		
-		if(m_DittoWindow.m_bMinimized == false)
-		{
-			GetWindowRect(m_crFullSizeWindow);
-			MoveWindow(m_crFullSizeWindow.right - CAPTION_BORDER, 
-				m_crFullSizeWindow.top, CAPTION_BORDER, 
-				m_crFullSizeWindow.Height());
-			m_DittoWindow.m_bMinimized = true;
-			m_TimeMinimized = COleDateTime::GetCurrentTime();
-			OnNcPaint();
-		}
-		else
-		{
-			CRect cr;
-			GetWindowRect(cr);
-			MoveWindow(cr.right - m_crFullSizeWindow.Width(),
-				cr.top, m_crFullSizeWindow.Width(), cr.Height());
-			
-			m_crFullSizeWindow.SetRectEmpty();
-			m_DittoWindow.m_bMinimized = false;
-			m_TimeMaximized = COleDateTime::GetCurrentTime();
-			::SetForegroundWindow(this->GetSafeHwnd());
-			OnNcPaint();
-		}
-	}
-	if(m_DittoWindow.m_lLeftBorder == CAPTION_BORDER)
-	{
-		if(m_DittoWindow.m_bMinimized == false)
-		{
-			GetWindowRect(m_crFullSizeWindow);
-			MoveWindow(m_crFullSizeWindow.left,
-				m_crFullSizeWindow.top, CAPTION_BORDER, 
-				m_crFullSizeWindow.Height());
-			m_DittoWindow.m_bMinimized = true;
-			m_TimeMinimized = COleDateTime::GetCurrentTime();
-			OnNcPaint();
-		}
-		else
-		{
-			CRect cr;
-			GetWindowRect(cr);
-			MoveWindow(cr.left, cr.top, 
-				m_crFullSizeWindow.Width(), cr.Height());
-			
-			m_crFullSizeWindow.SetRectEmpty();
-			m_DittoWindow.m_bMinimized = false;
-			m_TimeMaximized = COleDateTime::GetCurrentTime();
-			::SetForegroundWindow(this->GetSafeHwnd());
-			OnNcPaint();
-		}
-	}
-	else if(m_DittoWindow.m_lTopBorder == CAPTION_BORDER)
-	{
-		if(m_DittoWindow.m_bMinimized == false)
-		{
-			GetWindowRect(m_crFullSizeWindow);
-			MoveWindow(m_crFullSizeWindow.left,
-				m_crFullSizeWindow.top, 
-				m_crFullSizeWindow.Width(), 
-				CAPTION_BORDER);
-			m_DittoWindow.m_bMinimized = true;
-			m_TimeMinimized = COleDateTime::GetCurrentTime();
-			OnNcPaint();
-		}
-		else
-		{
-			CRect cr;
-			GetWindowRect(cr);
-			MoveWindow(cr.left, cr.top, 
-				cr.Width(), m_crFullSizeWindow.Height());
-			
-			m_crFullSizeWindow.SetRectEmpty();
-			m_DittoWindow.m_bMinimized = false;
-			m_TimeMaximized = COleDateTime::GetCurrentTime();
-			::SetForegroundWindow(this->GetSafeHwnd());
-			OnNcPaint();
-		}
-	}
-	else if(m_DittoWindow.m_lBottomBorder == CAPTION_BORDER)
-	{
-		if(m_DittoWindow.m_bMinimized == false)
-		{
-			GetWindowRect(m_crFullSizeWindow);
-			MoveWindow(m_crFullSizeWindow.left,
-				m_crFullSizeWindow.bottom - CAPTION_BORDER, 
-				m_crFullSizeWindow.Width(), 
-				CAPTION_BORDER);
-			m_DittoWindow.m_bMinimized = true;
-			m_TimeMinimized = COleDateTime::GetCurrentTime();
-			OnNcPaint();
-		}
-		else
-		{
-			CRect cr;
-			GetWindowRect(cr);
-			MoveWindow(cr.left, 
-				cr.bottom - m_crFullSizeWindow.Height(), 
-				cr.Width(), m_crFullSizeWindow.Height());
-			
-			m_crFullSizeWindow.SetRectEmpty();
-			m_DittoWindow.m_bMinimized = false;
-			m_TimeMaximized = COleDateTime::GetCurrentTime();
-			::SetForegroundWindow(this->GetSafeHwnd());
-			OnNcPaint();
-		}
-	}
-}
+
 
 void CWndEx::OnNcMouseMove(UINT nHitTest, CPoint point) 
 {
@@ -308,7 +201,7 @@ void CWndEx::OnNcMouseMove(UINT nHitTest, CPoint point)
 
 	if((m_bMaxSetTimer == false) && m_DittoWindow.m_bMinimized)
 	{
-		COleDateTimeSpan sp = COleDateTime::GetCurrentTime() - m_TimeMinimized;
+		COleDateTimeSpan sp = COleDateTime::GetCurrentTime() - m_DittoWindow.m_TimeMinimized;
 		if(sp.GetTotalSeconds() >= m_lDelayMaxSeconds)
 		{
 			SetTimer(TIMER_AUTO_MAX, CGetSetOptions::GetTimeBeforeExpandWindow(), NULL);
@@ -359,6 +252,14 @@ void CWndEx::OnTimer(UINT_PTR nIDEvent)
 		KillTimer(TIMER_AUTO_MAX);
 		m_bMaxSetTimer = false;
 	}
+	else if (nIDEvent == TIMER_BUTTON_UP)
+	{
+		if ((GetKeyState(VK_LBUTTON) & 0x100) == 0)
+		{
+			m_DittoWindow.DoNcLButtonUp(this, 0, CPoint(0, 0));
+			KillTimer(TIMER_BUTTON_UP);
+		}
+	}
 	
 	CWnd::OnTimer(nIDEvent);
 }
@@ -372,6 +273,8 @@ void CWndEx::OnWindowPosChanging(WINDOWPOS* lpwndpos)
 		KillTimer(TIMER_AUTO_MAX);
 		m_bMaxSetTimer = false;
 	}
+
+	m_DittoWindow.SnapToEdge(this, lpwndpos);
 }
 
 void CWndEx::OnSize(UINT nType, int cx, int cy)
@@ -389,4 +292,21 @@ void CWndEx::OnInitMenuPopup(CMenu *pPopupMenu, UINT nIndex, BOOL bSysMenu)
 void CWndEx::SetToolTipText(CString text)
 {
 	m_toolTip.UpdateTipText(text, this, 1);
+}
+
+void CWndEx::SetCustomWindowTitle(CString title)
+{
+	CString old = m_DittoWindow.m_customWindowTitle;
+	m_DittoWindow.m_customWindowTitle = title;
+	m_DittoWindow.m_useCustomWindowTitle = true;
+
+	if (old != m_DittoWindow.m_customWindowTitle)
+	{
+		this->InvalidateNc();
+	}
+}
+
+void CWndEx::MinMaxWindow(long lOption)
+{
+	m_DittoWindow.MinMaxWindow(this, lOption);
 }

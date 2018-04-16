@@ -53,6 +53,17 @@ BOOL CGdiImageDrawer::LoadStdImageDPI(UINT id96, UINT id120, UINT id144, UINT id
 	return ret;
 }
 
+void CGdiImageDrawer::Draw(CDC* pScreenDC, CWnd *pWnd, CRect rc, bool mouseHover, bool mouseDown)
+{
+	int width = m_pStdImage->m_pBitmap->GetWidth();
+	int height = m_pStdImage->m_pBitmap->GetHeight();
+
+	int x = rc.left + (rc.Width() / 2) - (width / 2);
+	int y = rc.top + (rc.Height() / 2) - (height / 2);
+
+	Draw(pScreenDC, pWnd, x, y, mouseHover, mouseDown);
+}
+
 void CGdiImageDrawer::Draw(CDC* pScreenDC, CWnd *pWnd, int posX, int posY, bool mouseHover, bool mouseDown, int forceWidth, int forceHeight)
 {
 	int width = m_pStdImage->m_pBitmap->GetWidth();
@@ -86,8 +97,21 @@ void CGdiImageDrawer::Draw(CDC* pScreenDC, CWnd *pWnd, int posX, int posY, bool 
 		posX += one;
 		posY += one;
 	}
+
+	//ImageAttributes ia;
+	//
+
+	//ColorMap blackToRed;
+	//blackToRed.oldColor = Color(255, 110, 114, 122);  // black
+	//blackToRed.newColor = Color(255, 255, 0, 0);// red
+	//ia.SetRemapTable(1, &blackToRed);
+
 	Gdiplus::Graphics graphics(pScreenDC->m_hDC);
 	graphics.DrawImage(*m_pStdImage, posX, posY, width, height);	
+
+	//RectF grect; grect.X = posX, grect.Y = posY; grect.Width = width; grect.Height = height;
+	//graphics.DrawImage(*m_pStdImage, grect, 0, 0, width, height, UnitPixel, &ia);
+
 
 	//If we are hoving over then draw the border
 	//if(mouseHover && mouseDown == false)

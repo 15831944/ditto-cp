@@ -25,13 +25,9 @@ BOOL SendToFriend(CSendToFriendInfo &Info)
 {
 	LogSendRecieveInfo("@@@@@@@@@@@@@@@ - START OF Send To Friend - @@@@@@@@@@@@@@@");
 
-	if(Info.m_pos > -1 && Info.m_pos < MAX_SEND_CLIENTS)
+	if(Info.m_csIP == _T(""))	
 	{
-		Info.m_csIP = g_Opt.m_SendClients[Info.m_pos].csIP;
-	}
-	else
-	{
-		Info.m_csErrorText = StrF(_T("ERROR getting ip position - %d"), Info.m_pos);
+		Info.m_csErrorText = StrF(_T("ERROR getting ip/host name position - %s"), Info.m_csIP);
 		LogSendRecieveInfo(Info.m_csErrorText);
 		return FALSE;
 	}
@@ -76,7 +72,7 @@ BOOL SendToFriend(CSendToFriendInfo &Info)
 
 		LogSendRecieveInfo(StrF(_T("Sending %d of %d clip to %s"), i+1, count, Info.m_csIP));
 
-		if(client.SendItem(pClip) == FALSE)
+		if(client.SendItem(pClip, Info.m_manualSend) == FALSE)
 		{
 			Info.m_csErrorText = "ERROR SendItem Failed";
 			LogSendRecieveInfo(Info.m_csErrorText);
@@ -179,9 +175,11 @@ BOOL CClient::OpenConnection(const TCHAR* servername)
 	return TRUE;
 }
 
-BOOL CClient::SendItem(CClip *pClip)
+BOOL CClient::SendItem(CClip *pClip, bool manualSend)
 {
 	CSendInfo Info;
+
+	Info.m_manualSend = manualSend;
 
 	//Send all text over as UTF-8
 	CStringA dest;
@@ -348,7 +346,7 @@ HGLOBAL CClient::RequestCopiedFiles(CClipFormat &HDropFormat, CString csIP, CStr
 		{
 			hReturn = Recieve.CreateCF_HDROPBuffer();
 		}
-		else if(lRet == FALSE)
+		else if(lRet == FALSE || lRet == MD5_MISMATCH)
 		{
 			if(pProgress != NULL && pProgress->Cancelled())
 			{
@@ -357,6 +355,10 @@ HGLOBAL CClient::RequestCopiedFiles(CClipFormat &HDropFormat, CString csIP, CStr
 			else	
 			{
 				csErrorString = _T("Error recieving files.");
+				if (lRet == MD5_MISMATCH)
+				{
+					csErrorString += _T(" MD5 Match Error.");
+				}
 			}
 		}
 

@@ -19,6 +19,7 @@ public:
 		m_nVersion = 1;
 		m_lParameter1 = -1;
 		m_lParameter2 = -1;
+		m_manualSend = 0;
 	}
 	int					m_nSize;
 	MyEnums::eSendType	m_Type;
@@ -28,7 +29,9 @@ public:
 	CHAR				m_cDesc[250];
 	long				m_lParameter1;
 	long				m_lParameter2;
-	char				m_cExtra[50];
+	CHAR				m_md5[32];
+	char				m_manualSend;
+	char				m_cExtra[17];
 };
 
 class CDittoCF_HDROP

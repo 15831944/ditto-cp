@@ -7,7 +7,6 @@
 #include "DatabaseUtilities.h"
 #include "ProcessPaste.h"
 #include <io.h>
-#include "AccessToSqlite.h"
 #include "Path.h"
 #include "InternetUpdate.h"
 
@@ -98,26 +97,7 @@ BOOL CheckDBExists(CString csDBPath)
 	if(csDBPath.IsEmpty())
 	{
 		csDBPath = GetDefaultDBName();
-
-		if(FileExists(csDBPath) == FALSE && 
-			CGetSetOptions::GetIsPortableDitto() == FALSE &&
-			CGetSetOptions::GetIsWindowsApp() == FALSE)
-		{
-			CString csOldDB = CGetSetOptions::GetDBPathOld();
-			if(csOldDB.IsEmpty())
-			{
-				csOldDB = GetOLDDefaultDBName();
-			}
-
-			if(FileExists(csOldDB))
-			{
-				//create the new sqlite db
-				CreateDB(csDBPath);
-
-				CAccessToSqlite Convert;
-				Convert.ConvertDatabase(csDBPath, csOldDB);
-			}
-		}
+		CGetSetOptions::SetDBPath(csDBPath);		
 	}
 
 	BOOL bRet = FALSE;
@@ -166,6 +146,8 @@ BOOL CheckDBExists(CString csDBPath)
 			csDBPath = csPath;
 			
 			bRet = CreateDB(csDBPath);
+
+			CGetSetOptions::SetDBPath(csDBPath);
 		}
 		else
 		{
@@ -186,8 +168,7 @@ BOOL OpenDatabase(CString csDB)
 	try
 	{
 		theApp.m_db.close();
-		theApp.m_db.open(csDB);
-		CGetSetOptions::SetDBPath(csDB);
+		theApp.m_db.open(csDB);		
 
 		theApp.m_db.setBusyTimeout(CGetSetOptions::GetDbTimeout());
 
@@ -558,7 +539,7 @@ BOOL BackupDB(CString dbPath, CString prefix, CDittoPopupWindow **popUpMsg)
 						writeFile.Write(pBuffer, readBytes);
 						totalReadSize+= readBytes;
 
-						int percent = ((totalReadSize * 100) / fileSize);
+						int percent = (int)((totalReadSize * 100) / fileSize);
 						if(percent != percentageComplete)
 						{
 							percentageComplete = percent;

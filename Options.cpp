@@ -66,6 +66,12 @@ CTheme CGetSetOptions::m_Theme;
 BOOL CGetSetOptions::m_showScrollBar = false;
 CGetSetOptions g_Opt;
 BOOL CGetSetOptions::m_bShowAlwaysOnTopWarning = TRUE;
+CRegExFilterHelper CGetSetOptions::m_regexHelper;
+BOOL CGetSetOptions::m_excludeCF_DIBInExcel = TRUE;
+CChaiScriptXml CGetSetOptions::m_copyScripts;
+CChaiScriptXml CGetSetOptions::m_pasteScripts;
+long CGetSetOptions::m_tooltipTimeout;
+BOOL CGetSetOptions::m_cleanRTFBeforeDrawing = TRUE;
 
 CGetSetOptions::CGetSetOptions()
 {
@@ -176,6 +182,7 @@ void CGetSetOptions::LoadSettings()
 	m_bOutputDebugString = false;
 	m_showScrollBar = GetShowScrollBar();
 	m_bShowAlwaysOnTopWarning = GetShowAlwaysOnTopWarning();
+	m_excludeCF_DIBInExcel = GetExcludeCF_DIBInExcel();
 
 	GetExtraNetworkPassword(true);
 
@@ -184,9 +191,30 @@ void CGetSetOptions::LoadSettings()
 		GetSendClients(i);
 	}
 
+	for (int i = 0; i < MAX_REGEX_FILTERS; i++)
+	{
+		CRegExFilterData data;
+		data.m_regEx = GetRegexFilter(i);
+		data.m_processFilters = GetRegexFilterByProcessName(i);
+		m_regexHelper.Add(i, data);
+	}
+
 	GetClientSendCount();
 
 	m_Theme.Load(GetTheme());
+
+	m_copyScripts.Load(GetCopyScriptsXml());
+	if (m_copyScripts.m_assignedGuidOnLoad)
+	{
+		SetCopyScriptsXml(m_copyScripts.Save());
+	}
+	m_pasteScripts.Load(GetPasteScriptsXml());
+	if (m_pasteScripts.m_assignedGuidOnLoad)
+	{
+		SetPasteScriptsXml(m_pasteScripts.Save());
+	}
+
+	m_tooltipTimeout = GetToolTipTimeout();
 }
 
 void CGetSetOptions::CreateIniFile(CString path)
@@ -454,6 +482,9 @@ long CGetSetOptions::GetProfileLong(CString csName, long lDefaultValue, CString 
 
 CString CGetSetOptions::GetProfileString(CString csName, CString csDefault, CString csNewPath)
 {
+	CString returnString;
+	DWORD dwBufLen = 0;
+
 	if(m_bFromIni && !m_bInConversion)
 	{
 		CString csApp(_T("Ditto"));
@@ -463,10 +494,31 @@ CString CGetSetOptions::GetProfileString(CString csName, CString csDefault, CStr
 			csApp = csNewPath;
 		}
 
-		TCHAR cString[MAX_PATH];
-		GetPrivateProfileString(csApp, csName, csDefault, cString, sizeof(cString), m_csIniFileName);
+		bool doBreak = false;
+		dwBufLen = 10000;
+		while (true)
+		{
+			TCHAR *szString = new TCHAR[dwBufLen];
+			ZeroMemory(szString, dwBufLen);
 
-		return cString;
+			DWORD readLength = GetPrivateProfileString(csApp, csName, csDefault, szString, dwBufLen, m_csIniFileName);
+
+			if (readLength < (dwBufLen - 1))
+			{
+				returnString = szString;
+				doBreak = true; //delay break so we can delete the string
+			}
+
+			delete[] szString;
+			dwBufLen = dwBufLen * 2;
+
+			if (doBreak)
+			{
+				break;
+			}
+		}
+
+		return returnString;
 	}
 
 	CString csPath(_T(REG_PATH));
@@ -478,18 +530,30 @@ CString CGetSetOptions::GetProfileString(CString csName, CString csDefault, CStr
 	HKEY hkKey;
 	long lResult = RegOpenKeyEx(HKEY_CURRENT_USER, csPath, NULL, KEY_READ, &hkKey);
 
-	TCHAR szString[256];
-	ZeroMemory(szString, sizeof(szString));
-	DWORD dwBufLen = 256;
+	if (lResult == ERROR_SUCCESS)
+	{
+		lResult = ::RegQueryValueEx(hkKey, csName, NULL, NULL, NULL, &dwBufLen);
 
-	lResult = ::RegQueryValueEx(hkKey , csName, NULL, NULL, (LPBYTE)szString, &dwBufLen);
+		if (lResult == ERROR_SUCCESS &&
+			dwBufLen > 0)
+		{
+			dwBufLen++;
+			TCHAR *szString = new TCHAR[dwBufLen];
+			ZeroMemory(szString, dwBufLen);
 
-	RegCloseKey(hkKey);
+			lResult = ::RegQueryValueEx(hkKey, csName, NULL, NULL, (LPBYTE)szString, &dwBufLen);
+
+			returnString = szString;
+			delete[] szString;
+		}
+
+		RegCloseKey(hkKey);
+	}
 
 	if(lResult != ERROR_SUCCESS)
 		return csDefault;
 
-	return szString;
+	return returnString;
 }
 
 BOOL CGetSetOptions::SetProfileLong(CString csName, long lValue)
@@ -657,28 +721,22 @@ BOOL CGetSetOptions::GetEnableTransparency()
 
 BOOL CGetSetOptions::SetTransparencyPercent(long lPercent)
 {
-#ifdef AFTER_98
 	if(lPercent > OPACITY_MAX)
 		lPercent = OPACITY_MAX;
 	if(lPercent < 0)
 		lPercent = 0;
 
 	return SetProfileLong("TransparencyPercent", lPercent);
-#endif
-	return FALSE;
 }
 
 long CGetSetOptions::GetTransparencyPercent()
 {
-#ifdef AFTER_98
 	long lValue = GetProfileLong("TransparencyPercent", 14);
 
 	if(lValue > OPACITY_MAX) lValue = OPACITY_MAX;
 	if(lValue < 0) lValue = 0;
 
 	return lValue;
-#endif
-	return 0;
 }
 
 BOOL CGetSetOptions::SetLinesPerRow(long lLines)
@@ -710,9 +768,6 @@ BOOL CGetSetOptions::GetRunOnStartUp()
 
 void CGetSetOptions::SetRunOnStartUp(BOOL bRun)
 {
-	if(bRun == GetRunOnStartUp())
-		return;
-
 	HKEY hkRun;
 	LONG nResult = RegOpenKeyEx(HKEY_CURRENT_USER,
 		_T("Software\\Microsoft\\Windows\\CurrentVersion\\Run"),
@@ -790,11 +845,11 @@ void CGetSetOptions::GetQuickPastePoint(CPoint &point)
 	point.x = GetResolutionProfileLong("QuickPasteX", 300);
 	point.y = GetResolutionProfileLong("QuickPasteY", 300);
 
-	if(point.x <= 0 && point.y <= 0)
+	/*if(point.x <= 0 && point.y <= 0)
 	{
 		point.x = 300;
 		point.y = 300;
-	}
+	}*/
 }
 
 BOOL CGetSetOptions::SetEditWndSize(CSize size)
@@ -861,10 +916,28 @@ BOOL CGetSetOptions::SetDBPath(CString csPath)
 	return SetProfileString("DBPath3", csPath);
 }
 
-CString CGetSetOptions::GetDBPath()
+CString CGetSetOptions::ResolvePath(CString path)
+{
+	CString dest;
+	int newSize = max(path.GetLength() * 10, 1000);
+
+	//path = _T("some string %COMPUTERNAME% test");
+
+	ExpandEnvironmentStrings(path, dest.GetBuffer(newSize), newSize);
+	dest.ReleaseBuffer();
+
+	return dest;
+}
+
+CString CGetSetOptions::GetDBPath(bool resolvePath)
 {
 	CString csDBPath;
 	csDBPath = GetProfileString("DBPath3", "");
+
+	if (resolvePath)
+	{
+		csDBPath = ResolvePath(csDBPath);
+	}
 
 	return csDBPath;
 }
@@ -1570,13 +1643,13 @@ void CGetSetOptions::SetEnableDebugLogging(BOOL bEnable)
 
 BOOL CGetSetOptions::GetEnsureConnectToClipboard()
 {
-	return GetProfileLong("EnsureConnected", TRUE);
+	return GetProfileLong("EnsureConnected2", FALSE);
 }
 
 void CGetSetOptions::SetEnsureConnectToClipboard(BOOL bSet)
 {
 	m_bEnsureConnectToClipboard = bSet;
-	SetProfileLong("EnsureConnected", bSet);
+	SetProfileLong("EnsureConnected2", bSet);
 }
 
 BOOL CGetSetOptions::GetPromptWhenDeletingClips()
@@ -1772,8 +1845,15 @@ bool CGetSetOptions::GetIsWindowsApp()
 CString CGetSetOptions::GetPasteString(CString csAppName)
 {
 	CString csString = GetProfileString(csAppName, _T(""), _T("PasteStrings"));
-	if(csString.IsEmpty())
+	if (csString.IsEmpty())
+	{
+		//edge is really slow to set focus so add a delay before sending the paste
+		if (csAppName == L"MicrosoftEdge.exe")
+		{
+			return _T("{DELAY 500}^{VKEY86}");
+		}
 		return GetDefaultPasteString();
+	}
 
 	return csString;
 }
@@ -1874,7 +1954,7 @@ DWORD CGetSetOptions::SendKeysDelay()
 
 DWORD CGetSetOptions::WaitForActiveWndTimeout()
 {
-	return (DWORD)GetProfileLong(_T("WaitForActiveWndTimeout"), 100);
+	return (DWORD)GetProfileLong(_T("WaitForActiveWndTimeout"), 500);
 }
 
 DWORD CGetSetOptions::FocusChangedDelay()
@@ -1918,6 +1998,11 @@ BOOL CGetSetOptions::GetSetFocusToApp(CString csAppName)
 DWORD CGetSetOptions::SelectedIndex()
 {
 	return (DWORD)GetProfileLong(_T("SelectedIndex"), 0);
+}
+
+void CGetSetOptions::SetSelectedIndex(int val)
+{
+	SetProfileLong(_T("SelectedIndex"), val);
 }
 
 void CGetSetOptions::SetCopyAppInclude(CString csAppName)
@@ -2252,10 +2337,17 @@ void CGetSetOptions::SetShowMsgWndOnCopyToGroup(BOOL val)
 	SetProfileLong(_T("ShowMsgWndOnCopyToGroup"), val);
 }
 
-int CGetSetOptions::GetActionShortCutA(DWORD action, int pos)
+int CGetSetOptions::GetActionShortCutA(DWORD action, int pos, CString refData)
 {
 	CString actionText;
-	actionText.Format(_T("QP_ShortCut_%d_%d_A"), action, pos);
+	if (refData != _T(""))
+	{
+		actionText.Format(_T("QP_ShortCut_%d_%s_%d_A"), action, refData, pos);
+	}
+	else
+	{
+		actionText.Format(_T("QP_ShortCut_%d_%d_A"), action, pos);
+	}
 	int ret = GetProfileLong(actionText, -1);
 	if (ret == -1)
 	{
@@ -2265,17 +2357,31 @@ int CGetSetOptions::GetActionShortCutA(DWORD action, int pos)
 	return ret;
 }
 
-void CGetSetOptions::SetActionShortCutA(int action, DWORD shortcut, int pos)
+void CGetSetOptions::SetActionShortCutA(int action, DWORD shortcut, int pos, CString refData)
 {
 	CString actionText;
-	actionText.Format(_T("QP_ShortCut_%d_%d_A"), action, pos);
+	if (refData != _T(""))
+	{
+		actionText.Format(_T("QP_ShortCut_%d_%s_%d_A"), action, refData, pos);
+	}
+	else
+	{
+		actionText.Format(_T("QP_ShortCut_%d_%d_A"), action, pos);
+	}
 	SetProfileLong(actionText, shortcut);
 }
 
-int CGetSetOptions::GetActionShortCutB(DWORD action, int pos)
+int CGetSetOptions::GetActionShortCutB(DWORD action, int pos, CString refData)
 {
 	CString actionText;
-	actionText.Format(_T("QP_ShortCut_%d_%d_B"), action, pos);
+	if (refData != _T(""))
+	{
+		actionText.Format(_T("QP_ShortCut_%d_%s_%d_B"), action, refData, pos);
+	}
+	else
+	{
+		actionText.Format(_T("QP_ShortCut_%d_%d_B"), action, pos);
+	}
 	int ret = GetProfileLong(actionText, -1);
 	if (ret == -1)
 	{
@@ -2285,10 +2391,17 @@ int CGetSetOptions::GetActionShortCutB(DWORD action, int pos)
 	return ret;
 }
 
-void CGetSetOptions::SetActionShortCutB(int action, DWORD shortcut, int pos)
+void CGetSetOptions::SetActionShortCutB(int action, DWORD shortcut, int pos, CString refData)
 {
 	CString actionText;
-	actionText.Format(_T("QP_ShortCut_%d_%d_B"), action, pos);
+	if (refData != _T(""))
+	{
+		actionText.Format(_T("QP_ShortCut_%d_%s_%d_B"), action, refData, pos);
+	}
+	else
+	{
+		actionText.Format(_T("QP_ShortCut_%d_%d_B"), action, pos);
+	}
 	SetProfileLong(actionText, shortcut);
 }
 
@@ -2371,4 +2484,205 @@ BOOL CGetSetOptions::GetUseUISelectedGroupForLastTenCopies()
 void CGetSetOptions::SetUseUISelectedGroupForLastTenCopies(int val)
 {
 	SetProfileLong(_T("UseUISelectedGroupForLastTenCopies"), val);
+}
+
+
+int CGetSetOptions::GetDelayRenderLockout()
+{
+	return GetProfileLong(_T("DelayRenderLockout"), 1000);
+}
+
+void CGetSetOptions::SetDelayRenderLockout(int val)
+{
+	SetProfileLong(_T("DelayRenderLockout"), val);
+}
+
+BOOL CGetSetOptions::GetAdjustClipsForCRC()
+{
+	return GetProfileLong(_T("AdjustClipsForCRC"), TRUE);
+}
+
+void CGetSetOptions::SetAdjustClipsForCRC(int val)
+{
+	SetProfileLong(_T("AdjustClipsForCRC"), val);
+}
+
+BOOL CGetSetOptions::GetCheckMd5OnFileTransfers()
+{
+	return GetProfileLong(_T("CheckMd5OnFileTransfers"), TRUE);
+}
+
+void CGetSetOptions::SetCheckMd5OnFileTransfers(int val)
+{
+	SetProfileLong(_T("CheckMd5OnFileTransfers"), val);
+}
+
+int CGetSetOptions::GetBalloonTimeout()
+{
+	return GetProfileLong(_T("BalloonTimeout"), 2500);
+}
+
+void CGetSetOptions::SetBalloonTimeout(int val)
+{
+	SetProfileLong(_T("BalloonTimeout"), val);
+}
+
+void CGetSetOptions::SetCustomSendToList(CString val)
+{
+	SetProfileString(_T("CustomSendToList2"), val);
+}
+
+CString	CGetSetOptions::GetCustomSendToList()
+{
+	return GetProfileString("CustomSendToList2", "");
+}
+
+int CGetSetOptions::GetMaxFileContentsSize()
+{
+	return GetProfileLong(_T("MaxFileContentsSize"), 64000000);
+}
+
+void CGetSetOptions::SetMaxFileContentsSize(int val)
+{
+	SetProfileLong(_T("MaxFileContentsSize"), val);
+}
+
+int CGetSetOptions::GetErrorMsgPopupTimeout()
+{
+	return GetProfileLong(_T("ErrorMsgPopupTimeout"), 3500);
+}
+
+void CGetSetOptions::SetErrorMsgPopupTimeout(int val)
+{
+	SetProfileLong(_T("ErrorMsgPopupTimeout"), val);
+}
+
+void CGetSetOptions::SetRegexFilter(CString val, int pos)
+{
+	CString cs;
+	cs.Format(_T("RegexFilter_%d"), pos);
+
+	m_regexHelper.SetRegEx(pos, std::wstring(val));
+
+	SetProfileString(cs, val);
+}
+
+CString	CGetSetOptions::GetRegexFilter(int pos)
+{
+	CString cs;
+	cs.Format(_T("RegexFilter_%d"), pos);
+	return GetProfileString(cs, "");
+}
+
+void CGetSetOptions::SetRegexFilterByProcessName(CString val, int pos)
+{
+	CString cs;
+	cs.Format(_T("RegexFilterByProcessName_%d"), pos);
+
+	m_regexHelper.SetProcessFilter(pos, val);
+
+	SetProfileString(cs, val);
+}
+
+CString	CGetSetOptions::GetRegexFilterByProcessName(int pos)
+{
+	CString cs;
+	cs.Format(_T("RegexFilterByProcessName_%d"), pos);
+	return GetProfileString(cs, "");
+}
+
+BOOL CGetSetOptions::GetOpenToGroupByActiveExe()
+{
+	return GetProfileLong(_T("OpenToGroupByActiveExe"), TRUE);
+}
+
+void CGetSetOptions::SetOpenToGroupByActiveExe(int val)
+{
+	SetProfileLong(_T("OpenToGroupByActiveExe"), val);
+}
+
+BOOL CGetSetOptions::GetExcludeCF_DIBInExcel()
+{
+	return GetProfileLong(_T("ExcludeCF_DIBInExcel"), TRUE);
+}
+
+void CGetSetOptions::SetExcludeCF_DIBInExcel(int val)
+{
+	m_excludeCF_DIBInExcel = val;
+	SetProfileLong(_T("ExcludeCF_DIBInExcel"), val);
+}
+
+BOOL CGetSetOptions::GetShowStartupMessage()
+{
+	return GetProfileLong(_T("ShowStartupMessage"), TRUE);
+}
+
+void CGetSetOptions::SetShowStartupMessage(int val)
+{
+	SetProfileLong(_T("ShowStartupMessage"), val);
+}
+
+CString CGetSetOptions::GetCopyScriptsXml()
+{
+	return GetProfileString("CopyScriptsXml", "");
+}
+
+void CGetSetOptions::SetCopyScriptsXml(CString val)
+{
+	m_copyScripts.Load(val);
+	SetProfileString(_T("CopyScriptsXml"), val);
+}
+
+CString CGetSetOptions::GetPasteScriptsXml()
+{
+	return GetProfileString("PasteScriptsXml", "");
+}
+
+void CGetSetOptions::SetPasteScriptsXml(CString val)
+{
+	m_pasteScripts.Load(val);
+	SetProfileString(_T("PasteScriptsXml"), val);
+}
+
+long CGetSetOptions::GetToolTipTimeout()
+{
+	return GetProfileLong("ToolTipTimeout", -1);
+}
+
+void CGetSetOptions::SetToolTipTimeout(long val)
+{
+	m_tooltipTimeout = val;
+	SetProfileLong("ToolTipTimeout", val);
+}
+
+CString CGetSetOptions::GetPastSearchXml()
+{
+	return GetProfileString("PastSearchXml", "");
+}
+
+void CGetSetOptions::SetPastSearchXml(CString val)
+{
+	SetProfileString(_T("PastSearchXml"), val);
+}
+
+BOOL CGetSetOptions::GetShowMsgWhenReceivingManualSentClip()
+{
+	return GetProfileLong("ShowMsgWhenReceivingManualSentClip", TRUE);
+}
+
+void CGetSetOptions::SetShowMsgWhenReceivingManualSentClip(BOOL val)
+{
+	SetProfileLong("ShowMsgWhenReceivingManualSentClip", val);
+}
+
+
+BOOL CGetSetOptions::GetCleanRTFBeforeDrawing()
+{
+	return GetProfileLong("CleanRTFBeforeDrawing", TRUE);
+}
+
+void CGetSetOptions::SetCleanRTFBeforeDrawing(BOOL val)
+{
+	m_cleanRTFBeforeDrawing = true;
+	SetProfileLong("CleanRTFBeforeDrawing", val);
 }

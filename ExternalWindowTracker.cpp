@@ -249,7 +249,9 @@ void ExternalWindowTracker::SendPaste(bool activateTarget)
 		pasteAsAdmin = CUAC_Helper::PasteAsAdmin(activeWnd);
 	}
 
-	if(pasteAsAdmin &&
+	//can't run an elevated app when running windows app
+	if(CGetSetOptions::GetIsWindowsApp() == FALSE &&
+		pasteAsAdmin &&
 		theApp.UACThreadRunning() == false)
 	{
 		Log(StrF(_T("Passing paste off to uac aware app")));
@@ -296,7 +298,9 @@ void ExternalWindowTracker::SendCopy(CopyReasonEnum::CopyReason copyReason)
 		pasteAsAdmin = CUAC_Helper::PasteAsAdmin(activeWnd);
 	}
 
-	if(pasteAsAdmin &&
+	//can't run an elevated app when running windows app
+	if(CGetSetOptions::GetIsWindowsApp() == FALSE &&
+		pasteAsAdmin &&
 		theApp.UACThreadRunning() == false)
 	{
 		Log(StrF(_T("Passing copy off to uac aware app")));
@@ -344,7 +348,9 @@ void ExternalWindowTracker::SendCut()
 		pasteAsAdmin = CUAC_Helper::PasteAsAdmin(m_activeWnd);
 	}
 
-	if(pasteAsAdmin &&
+	//can't run an elevated app when running windows app
+	if(CGetSetOptions::GetIsWindowsApp() == FALSE &&
+		pasteAsAdmin &&
 		theApp.UACThreadRunning() == false)
 	{
 		Log(StrF(_T("Passing copy off to uac aware app")));
@@ -437,8 +443,16 @@ CPoint ExternalWindowTracker::FocusCaret()
 				BOOL ret = GetCaretPos(&pt);
 				if(ret  && (pt.x > 0 || pt.y > 0))
 				{
-					ClientToScreen(m_focusWnd, &pt);
-					pt.y += 20;
+					::ClientToScreen(m_focusWnd, &pt);
+					if (pt.y > 0 && pt.x > 0)
+					{
+						pt.y += 20;
+					}
+					else
+					{
+						pt.x = 0;
+						pt.y = 0;
+					}
 				}
 
 				AttachThreadInput(GetWindowThreadProcessId(m_activeWnd, NULL), GetCurrentThreadId(), FALSE);

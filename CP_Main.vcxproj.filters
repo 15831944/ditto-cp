@@ -40,9 +40,6 @@
     <ClCompile Include="AlphaBlend.cpp">
       <Filter>source</Filter>
     </ClCompile>
-    <ClCompile Include="AccessToSqlite.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
     <ClCompile Include="AddType.cpp">
       <Filter>source</Filter>
     </ClCompile>
@@ -412,7 +409,38 @@
     <ClCompile Include="NTray.cpp">
       <Filter>source</Filter>
     </ClCompile>
+    <ClCompile Include="TinyXml\tinystr.cpp">
+      <Filter>tineyxml</Filter>
+    </ClCompile>
+    <ClCompile Include="TinyXml\tinyxml.cpp">
+      <Filter>tineyxml</Filter>
+    </ClCompile>
+    <ClCompile Include="TinyXml\tinyxmlerror.cpp">
+      <Filter>tineyxml</Filter>
+    </ClCompile>
+    <ClCompile Include="TinyXml\tinyxmlparser.cpp">
+      <Filter>tineyxml</Filter>
+    </ClCompile>
+    <ClCompile Include="SymbolEdit.cpp">
+      <Filter>source</Filter>
+    </ClCompile>
+    <ClCompile Include="Md5.cpp" />
+    <ClCompile Include="FriendPromptDlg.cpp" />
+    <ClCompile Include="DimWnd.cpp" />
     <ClCompile Include="SymbolEdit.cpp" />
+    <ClCompile Include="AdvGeneral.cpp" />
+    <ClCompile Include="RegExFilterHelper.cpp" />
+    <ClCompile Include="CustomFriendsHelper.cpp" />
+    <ClCompile Include="ScriptEditor.cpp" />
+    <ClCompile Include="ChaiScriptOnCopy.cpp">
+      <Filter>ChaiScript</Filter>
+    </ClCompile>
+    <ClCompile Include="ChaiScriptXml.cpp">
+      <Filter>ChaiScript</Filter>
+    </ClCompile>
+    <ClCompile Include="DittoChaiScript.cpp">
+      <Filter>ChaiScript</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="sqlite\CppSQLite3.h">
@@ -434,9 +462,6 @@
       <Filter>header</Filter>
     </ClInclude>
     <ClInclude Include="Accels.h">
-      <Filter>header</Filter>
-    </ClInclude>
-    <ClInclude Include="AccessToSqlite.h">
       <Filter>header</Filter>
     </ClInclude>
     <ClInclude Include="AddType.h">
@@ -877,7 +902,26 @@
     <ClInclude Include="NTray.h">
       <Filter>header</Filter>
     </ClInclude>
+    <ClInclude Include="SymbolEdit.h">
+      <Filter>header</Filter>
+    </ClInclude>
+    <ClInclude Include="Md5.h" />
+    <ClInclude Include="FriendPromptDlg.h" />
+    <ClInclude Include="DimWnd.h" />
     <ClInclude Include="SymbolEdit.h" />
+    <ClInclude Include="AdvGeneral.h" />
+    <ClInclude Include="RegExFilterHelper.h" />
+    <ClInclude Include="CustomFriendsHelper.h" />
+    <ClInclude Include="ScriptEditor.h" />
+    <ClInclude Include="ChaiScriptOnCopy.h">
+      <Filter>ChaiScript</Filter>
+    </ClInclude>
+    <ClInclude Include="ChaiScriptXml.h">
+      <Filter>ChaiScript</Filter>
+    </ClInclude>
+    <ClInclude Include="DittoChaiScript.h">
+      <Filter>ChaiScript</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="CP_Main.rc">
@@ -1173,62 +1217,177 @@
     <None Include="res\system_menu_32_32.png">
       <Filter>res</Filter>
     </None>
-    <None Include="res\ChevronRight_Black_16_16.png" />
-    <None Include="res\ChevronRight_Black_20_20.png" />
-    <None Include="res\ChevronRight_Black_24_24.png" />
-    <None Include="res\ChevronRight_Black_32_32.png" />
-    <None Include="res\Close_Black_16_16.png" />
-    <None Include="res\Close_Black_20_20.png" />
-    <None Include="res\Close_Black_24_24.png" />
-    <None Include="res\Close_Black_32_32.png" />
-    <None Include="res\NewWindowIcon_24_14.png" />
-    <None Include="res\system_menu_2_32_32.png" />
-    <None Include="res\system_menu_2_64_64.png" />
-    <None Include="res\system_menu_2_48_48.png" />
-    <None Include="res\system_menu_2_40_40.png" />
-    <None Include="res\Open Folder-32.png" />
-    <None Include="res\Open Folder-24.png" />
-    <None Include="res\system_menu_2_48.png" />
-    <None Include="res\system_menu_2_36.png" />
-    <None Include="res\system_menu_2_30.png" />
-    <None Include="res\system_menu_2_24.png" />
-    <None Include="res\open_folder_48.png" />
-    <None Include="res\open_folder_36.png" />
-    <None Include="res\open_folder_30.png" />
-    <None Include="res\open_folder_24.png" />
-    <None Include="res\ChevronLeft_Black_16_16.png" />
-    <None Include="res\ChevronLeft_Black_20_20.png" />
-    <None Include="res\ChevronLeft_Black_24_24.png" />
-    <None Include="res\ChevronLeft_Black_32_32.png" />
-    <None Include="res\NewWindowIcon_48.png" />
-    <None Include="res\NewWindowIcon_36.png" />
-    <None Include="res\NewWindowIcon_30.png" />
-    <None Include="res\return_16.png" />
-    <None Include="res\return_20.png" />
-    <None Include="res\return_24.png" />
-    <None Include="res\return_32.png" />
-    <None Include="res\Search_16.png" />
-    <None Include="res\Search_20.png" />
-    <None Include="res\Search_24.png" />
-    <None Include="res\Search_32.png" />
-    <None Include="res\search_close_16.png" />
-    <None Include="res\minimize_16.png" />
-    <None Include="res\minimize_32.png" />
-    <None Include="res\minimize_24.png" />
-    <None Include="res\minimize_20.png" />
-    <None Include="res\maximize_32.png" />
-    <None Include="res\maximize_24.png" />
-    <None Include="res\maximize_20.png" />
-    <None Include="res\return_28.png" />
-    <None Include="res\minimize_28.png" />
-    <None Include="res\maximize_28.png" />
-    <None Include="res\ChevronLeft_Black_28.png" />
-    <None Include="res\ChevronRight_Black_28.png" />
-    <None Include="res\Close_Black_28.png" />
-    <None Include="res\system_menu_2_42.png" />
-    <None Include="res\open_folder_42.png" />
-    <None Include="res\cog_28.png" />
-    <None Include="res\Search_28.png" />
+    <None Include="res\ChevronLeft_Black_16_16.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\ChevronLeft_Black_20_20.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\ChevronLeft_Black_24_24.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\ChevronLeft_Black_28.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\ChevronLeft_Black_32_32.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\ChevronRight_Black_16_16.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\ChevronRight_Black_20_20.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\ChevronRight_Black_24_24.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\ChevronRight_Black_28.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\ChevronRight_Black_32_32.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\Close_Black_16_16.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\Close_Black_20_20.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\Close_Black_24_24.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\Close_Black_28.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\Close_Black_32_32.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\maximize_20.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\maximize_24.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\maximize_28.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\maximize_32.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\minimize_16.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\minimize_20.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\minimize_24.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\minimize_28.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\minimize_32.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\NewWindowIcon_24_14.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\NewWindowIcon_30.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\NewWindowIcon_36.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\NewWindowIcon_48.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\Open Folder-24.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\Open Folder-32.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\open_folder_24.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\open_folder_30.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\open_folder_36.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\open_folder_42.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\open_folder_48.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\return_16.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\return_20.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\return_24.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\return_28.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\return_32.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\Search_16.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\Search_20.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\Search_24.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\Search_28.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\Search_32.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\search_close_16.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\system_menu_2_24.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\system_menu_2_30.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\system_menu_2_32_32.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\system_menu_2_36.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\system_menu_2_40_40.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\system_menu_2_42.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\system_menu_2_48.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\system_menu_2_48_48.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\system_menu_2_64_64.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\cog_28.png">
+      <Filter>res</Filter>
+    </None>
+    <None Include="res\cursor1.cur" />
+    <None Include="res\cursor_zoom_in.cur" />
+    <None Include="res\cursor2.cur" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="sqlite">
@@ -1252,6 +1411,9 @@
     <Filter Include="QRCode">
       <UniqueIdentifier>{3a17864d-e44b-4afe-84b0-a44dee42c591}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ChaiScript">
+      <UniqueIdentifier>{13844e6c-68be-44ca-93c7-1f0b08f0b319}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="DeclareDPIAware.manifest">
@@ -1260,5 +1422,13 @@
   </ItemGroup>
   <ItemGroup>
     <Midl Include="CP_Main.idl" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\icon3.ico" />
+    <Image Include="res\down_16.png" />
+    <Image Include="res\down_20.png" />
+    <Image Include="res\down_24.png" />
+    <Image Include="res\down_28.png" />
+    <Image Include="res\down_32.png" />
   </ItemGroup>
 </Project>

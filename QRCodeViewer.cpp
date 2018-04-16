@@ -6,6 +6,7 @@
 #include "QRCodeViewer.h"
 #include "MainTableFunctions.h"
 
+#define TIMER_BUTTON_UP 1
 
 // QRCodeViewer
 
@@ -37,6 +38,8 @@ BEGIN_MESSAGE_MAP(QRCodeViewer, CWnd)
 	ON_WM_NCLBUTTONUP()
 	ON_WM_ERASEBKGND()
 	ON_WM_CTLCOLOR()
+	ON_WM_WINDOWPOSCHANGING()
+	ON_WM_TIMER()
 END_MESSAGE_MAP()
 
 
@@ -59,7 +62,7 @@ BOOL QRCodeViewer::CreateEx(CWnd *pParentWnd, unsigned char* bitmapData, int ima
 
 		m_DittoWindow.DoCreate(this);
 		m_DittoWindow.SetCaptionColors(g_Opt.m_Theme.CaptionLeft(), g_Opt.m_Theme.CaptionRight(), g_Opt.m_Theme.Border());
-		m_DittoWindow.SetCaptionOn(this, CGetSetOptions::GetCaptionPos(), true);
+		m_DittoWindow.SetCaptionOn(this, CGetSetOptions::GetCaptionPos(), true, g_Opt.m_Theme.GetCaptionSize(), g_Opt.m_Theme.GetCaptionFontSize());
 		m_DittoWindow.m_bDrawMinimize = false;
 		m_DittoWindow.m_bDrawMaximize = true;
 		m_DittoWindow.m_bDrawChevron = false;
@@ -201,7 +204,12 @@ BOOL QRCodeViewer::OnEraseBkgnd(CDC* pDC)
 
 void QRCodeViewer::OnNcLButtonDown(UINT nHitTest, CPoint point) 
 {
-	m_DittoWindow.DoNcLButtonDown(this, nHitTest, point);
+	int buttonPressed = m_DittoWindow.DoNcLButtonDown(this, nHitTest, point);
+
+	if (buttonPressed != 0)
+	{
+		SetTimer(TIMER_BUTTON_UP, 100, NULL);
+	}
 
 	CWnd::OnNcLButtonDown(nHitTest, point);
 }
@@ -216,6 +224,8 @@ void QRCodeViewer::OnNcLButtonUp(UINT nHitTest, CPoint point)
 		::PostMessage(m_hWnd, WM_CLOSE, 0, 0);
 		break;
 	}
+
+	KillTimer(TIMER_BUTTON_UP);
 
 	CWnd::OnNcLButtonUp(nHitTest, point);
 }
@@ -239,4 +249,28 @@ HBRUSH QRCodeViewer::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 
 	// TODO:  Return a different brush if the default is not desired
 	return hbr;
+}
+void QRCodeViewer::OnWindowPosChanging(WINDOWPOS* lpwndpos)
+{
+	CWnd::OnWindowPosChanging(lpwndpos);
+
+	m_DittoWindow.SnapToEdge(this, lpwndpos);
+}
+
+void QRCodeViewer::OnTimer(UINT_PTR nIDEvent)
+{
+	switch (nIDEvent)
+	{
+		case TIMER_BUTTON_UP:
+		{
+			if ((GetKeyState(VK_LBUTTON) & 0x100) == 0)
+			{
+				m_DittoWindow.DoNcLButtonUp(this, 0, CPoint(0, 0));
+				KillTimer(TIMER_BUTTON_UP);
+			}
+			break;
+		}
+	}
+
+	CWnd::OnTimer(nIDEvent);
 }

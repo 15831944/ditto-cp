@@ -1,3 +1,91 @@
+3.21.223.0 12-15-2017
+
+- Chai script paste support (https://sourceforge.net/p/ditto-cp/wiki/Scripting/)
+- Fixed issue with pasting into admin app from a low privilege user
+- Fixed crash when dragging and dropping
+- Handle exception when placing items on the clipboard, should fix a reported crash
+- Handle hyper-links in description window
+- Handle mouse wheel messages for the window the mouse is over not the the focused window
+- Set focus to richtext on mouse active so the first click works to select text and click on hyper-links
+- Don't hide description window when deleting clips
+- Track active window when opened from command line option
+- Handle page up/down with description window open
+- Use version 6 common controls, config windows looks better
+- Removed ability to convert old access db to sqlite, if needed they can first run an older version then this version.
+- Added adv option to multi paste in reverse order or not
+- Find child process for uwp apps, edge, mail, ... 
+- Delay sending paste to edge browser so the paste works, edge seems to take a long time to set focus
+- use rtf control to pre process rtf before we draw rtf text, was finding newer version of word would add data that our draw routine could not handle
+- Don't combine multiple clips unless they all have that type of data
+- Assign short cut keys to paste scripts
+- PNG supported in viewer and thumbnail images
+- Support png images in drag and drop and export to image
+- Change appx app name to "Ditto Clipboard" - added php script to beta page to always refresh page
+- Updated icons for alt-tab
+- Resize dialog paint fix
+- Tooltip timeout of 0 turns off toolips
+- Show a message when receiving a manual sent clip, option to turn this off
+- Color search box better when using dark theme
+- Handle repeat keys when moving selection up and down
+- Show selected index and clipboard change delay in adv settings
+- Added menu option to move clip to the end of the list
+- Added shortcut key to load last search
+- Added shortcut key to toggle search method 
+- Added the ability use environment variables in the database path
+- Don't add cmd.exe custom keys if we are windows 10
+- Fixed issue with showing scroll bars
+- Fixed searching for regex on quick paste text
+- F3 searches list by default on second press if searching
+- Added tooltip timeout to the adv options window
+- Read large string values from settings (reg or ini)
+- Fixed issues with drawing rtf text
+- Updated Chinese translation
+- Added option to not show startup tooltip message 
+- Show & when typed into search box
+
+3.21.185.0 9-4-2017
+- Reworked config - removed quick paste tab - updated general page - added advanced popup for rest of settings - added regex filter config ui
+- Forward mousewheel to description window
+- Updated bitmap generation, uses Bicubic to resize images now, much better image quality
+- Added command to move selection up/down that can be assigned to shortcut key
+- Control-drag will always drag files
+- Exclude CF_DIB if copied from excel, often causes lockups
+- Reset scroll back to 0 when refilling list, before it could get scrolled to the right and look empty
+- Show menu of previouse searches (ctrl-down or ctrl-shift-down or click down icon)
+- Check focused process name against group name, if they match open to that group, needs to match exactly (ex, notepad.exe), case does not matter
+- Windows scaling fixes
+- Fixed pasting into search bar if pasted text is larger than the displayed width
+- Fixed crashes around bad regular expressions, added try-catch block
+- Implimented regex filter of clips to exclude clips from getting into ditto that match a regulare expression
+- Added option to save file contents into ditto's database so we don't need the file anymore
+- Fixed issue with showing never delete icon when it shouldn't be shown
+- Free up memory when saving image to file fromd drag drop
+- Added option to prompt for friends ip/host name for who to send to
+- Offset position at cursor so we don't show toolip
+- Added option to replace top sticky clip
+- Show balloon tooltip on start and on error messages
+- When running from windows app don't try and launch elevated app
+- Fixes for drawning html tags present in copied text, use un printable characters to highlight
+- Updated to visual studio 2017
+- Adjust rtf text when generating crc to handle word and outlook adding unique values to the rtf text
+
+
+
+3.21.134.0 1-29-2017
+- Updated default UI look of Ditto
+- Added custom shortcut keys (options - quick paste Keyboard)
+- Updated Ditto Icon
+- Added option to paste adding the current time to the end
+- Added option to show what clips have been pasted
+- Added option to installer to add firewall exception for Ditto
+- Added option to last ten pastes to use ui selected group for indexes
+- Installer updated to auto close Ditto
+- Removed flicker on large tooltop text
+- Added option to toggle last viewed group
+- Show scroll bars when viewing image in description window
+- Added multiple shortcut keys to activate Ditto. Useful when using multiple language keyboards
+- Allow delete/page up/down while description window is visible
+
 3.21.50.0 3-18-2015
 - Up/down keys move description up down just as n and p do
 - Use ever incrementing value for drag file names, this way they are always unique

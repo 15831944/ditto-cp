@@ -13,6 +13,12 @@
 #define VK_MOUSE_RIGHT_CLICK 0x03
 #define VK_MOUSE_MIDDLE_CLICK 0x04
 
+#define UPDATE_AFTER_PASTE_SELECT_CLIP 0x1
+#define UPDATE_AFTER_PASTE_REFRESH_VISIBLE 0x2
+
+#define REMOTE_CLIP_ADD_TO_CLIPBOARD 0x1
+#define REMOTE_CLIP_MANUAL_SEND 0x2
+
 
 //Handle foreign keyboards pressing ALT_GR (right alt), this simulates a control press
 //http://compgroups.net/comp.os.programmer.win32/alt-gr-key-and-left-ctrl/2840252
@@ -178,8 +184,12 @@ void OnInitMenuPopupEx(CMenu *pPopupMenu, UINT nIndex, BOOL bSysMenu, CWnd *pWnd
 
 CString InternetEncode(CString text);
 
-bool WriteCF_DIBToFile(CString csPath, LPVOID data, ULONG size);
-
 CString GetProcessName(HWND hWnd, DWORD processId = 0);
+
+void DeleteParamFromRTF(CStringA &test, CStringA find, bool searchForTrailingDigits);
+
+bool RemoveRTFSection(CStringA &str, CStringA section);
+
+CString NewGuidString();
 
 #endif // !defined(AFX_CP_GUI_GLOBALS__FBCDED09_A6F2_47EB_873F_50A746EBC86B__INCLUDED_)

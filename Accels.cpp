@@ -16,13 +16,13 @@ void CAccels::AddAccel(CAccel a)
 	m_multiMap.insert(pair<DWORD, CAccel>(a.Key, a));
 }
 
-void CAccels::AddAccel(DWORD cmd, DWORD key, DWORD key2)
+void CAccels::AddAccel(DWORD cmd, DWORD key, DWORD key2, CString refData)
 {
 	if ((int)key2 <= 0)
 	{
 		key2 = 0;
 	}
-	CAccel a(key, cmd, key2);
+	CAccel a(key, cmd, key2, refData);
 
 	m_multiMap.insert(pair<DWORD, CAccel>(key, a));
 }
@@ -44,7 +44,7 @@ CString CAccels::GetCmdKeyText(DWORD cmd)
 				cmdShortcutText = CHotKey::GetHotKeyDisplayStatic(it->second.Key);
 				if (it->second.Key2 != 0)
 				{
-					CString cmdShortcutText2 = CHotKey::GetHotKeyDisplayStatic(it->second.Key);
+					CString cmdShortcutText2 = CHotKey::GetHotKeyDisplayStatic(it->second.Key2);
 
 					if (cmdShortcutText2.GetLength() > 0)
 					{
@@ -135,6 +135,20 @@ bool CAccels::OnMsg(MSG *pMsg, CAccel &a)
 	}
 
     return false;
+}
+
+bool CAccels::ContainsKey(int vKey)
+{
+	CString cmdShortcutText;
+	for (multimap<DWORD, CAccel>::iterator it = m_multiMap.begin(); it != m_multiMap.end(); ++it)
+	{
+		if (LOBYTE(it->second.Key) == vKey || LOBYTE(it->second.Key2) == vKey)
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 BYTE CAccels::GetKeyStateModifiers()

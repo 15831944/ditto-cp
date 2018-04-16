@@ -1,6 +1,8 @@
 #pragma once
 
 #include "Theme.h"
+#include "RegExFilterHelper.h"
+#include "ChaiScriptXml.h"
 
 #define MAX_SEND_CLIENTS	15
 class CSendClients
@@ -135,7 +137,8 @@ public:
 	static void SetCopyGap(long lGap);
 
 	static BOOL SetDBPath(CString csPath);
-	static CString GetDBPath();
+	static CString GetDBPath(bool resolvePath = true);
+	static CString ResolvePath(CString path);
 
 	static BOOL SetDBPathOld(CString csPath);
 	static CString GetDBPathOld();
@@ -401,6 +404,7 @@ public:
 	static BOOL		GetSetFocusToApp(CString csAppName);
 
 	static DWORD	SelectedIndex();
+	static void		SetSelectedIndex(int val);
 
 	static void		SetCopyAppInclude(CString csAppName);
 	static CString  GetCopyAppInclude();
@@ -504,11 +508,11 @@ public:
 	static BOOL GetShowMsgWndOnCopyToGroup();
 	static void SetShowMsgWndOnCopyToGroup(BOOL val);
 
-	static int GetActionShortCutA(DWORD action, int pos);
-	static void SetActionShortCutA(int action, DWORD shortcut, int pos);
+	static int GetActionShortCutA(DWORD action, int pos, CString refData = _T(""));
+	static void SetActionShortCutA(int action, DWORD shortcut, int pos, CString refData = _T(""));
 
-	static int GetActionShortCutB(DWORD action, int pos);
-	static void SetActionShortCutB(int action, DWORD shortcut, int pos);
+	static int GetActionShortCutB(DWORD action, int pos, CString refData = _T(""));
+	static void SetActionShortCutB(int action, DWORD shortcut, int pos, CString refData = _T(""));
 
 	static BOOL	m_bShowAlwaysOnTopWarning;
 	static BOOL GetShowAlwaysOnTopWarning();
@@ -534,6 +538,67 @@ public:
 
 	static BOOL GetUseUISelectedGroupForLastTenCopies();
 	static void SetUseUISelectedGroupForLastTenCopies(int val);
+
+	static int GetDelayRenderLockout();
+	static void SetDelayRenderLockout(int val);
+
+	static BOOL GetAdjustClipsForCRC();
+	static void SetAdjustClipsForCRC(int val);
+
+	static BOOL GetCheckMd5OnFileTransfers();
+	static void SetCheckMd5OnFileTransfers(int val);
+
+	static int GetBalloonTimeout();
+	static void SetBalloonTimeout(int val);
+
+	static void		SetCustomSendToList(CString val);
+	static CString	GetCustomSendToList();
+
+	static int GetMaxFileContentsSize();
+	static void SetMaxFileContentsSize(int val);
+
+	static int GetErrorMsgPopupTimeout();
+	static void SetErrorMsgPopupTimeout(int val);
+
+	static CRegExFilterHelper m_regexHelper;
+	static void		SetRegexFilter(CString val, int pos);
+	static CString	GetRegexFilter(int pos);
+
+	static void SetRegexFilterByProcessName(CString val, int pos);
+	static CString GetRegexFilterByProcessName(int pos);
+
+	static BOOL GetOpenToGroupByActiveExe();
+	static void SetOpenToGroupByActiveExe(int val);
+
+	static BOOL m_excludeCF_DIBInExcel;
+	static BOOL GetExcludeCF_DIBInExcel();
+	static void SetExcludeCF_DIBInExcel(int val);
+
+	static BOOL GetShowStartupMessage();
+	static void SetShowStartupMessage(int val);
+
+	static CChaiScriptXml m_copyScripts;
+	static CString GetCopyScriptsXml();
+	static void SetCopyScriptsXml(CString val);
+
+	static CChaiScriptXml m_pasteScripts;
+	static CString GetPasteScriptsXml();
+	static void SetPasteScriptsXml(CString val);
+
+	static long m_tooltipTimeout;
+	static long GetToolTipTimeout();
+	static void SetToolTipTimeout(int long);
+
+	static CString GetPastSearchXml();
+	static void SetPastSearchXml(CString val);
+
+	static BOOL GetShowMsgWhenReceivingManualSentClip();
+	static void SetShowMsgWhenReceivingManualSentClip(BOOL val);
+
+	static BOOL m_cleanRTFBeforeDrawing;
+	static BOOL GetCleanRTFBeforeDrawing();
+	static void SetCleanRTFBeforeDrawing(BOOL val);
+
 };
 
 // global for easy access and for initialization of fast access variables

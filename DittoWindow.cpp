@@ -6,7 +6,9 @@
 
 CDittoWindow::CDittoWindow(void)
 {
-	m_lTopBorder = CAPTION_BORDER;
+	m_captionBorderWidth = theApp.m_metrics.ScaleX(25);
+
+	m_lTopBorder = m_captionBorderWidth;
 	m_lRightBorder = BORDER;
 	m_lBottomBorder = BORDER;
 	m_lLeftBorder = BORDER;
@@ -34,6 +36,8 @@ CDittoWindow::CDittoWindow(void)
 	m_sendWMClose = true;
 	m_customWindowTitle = _T("");
 	m_useCustomWindowTitle = false;
+	m_buttonDownOnCaption = false;
+	m_crFullSizeWindow.SetRectEmpty();	
 }
 
 CDittoWindow::~CDittoWindow(void)
@@ -49,6 +53,8 @@ void CDittoWindow::DoCreate(CWnd *pWnd)
 	m_HorFont.CreateFont(theApp.m_metrics.PointsToPixels(18), 0, 0, 0, 500, FALSE, FALSE, 0, DEFAULT_CHARSET,
 						OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,DEFAULT_QUALITY,
 						DEFAULT_PITCH|FF_SWISS, _T("Segoe UI"));
+
+	SetTitleTextHeight(pWnd);
 	
 	m_closeButton.LoadStdImageDPI(Close_Black_16_16, Close_Black_20_20, Close_Black_24_24, Close_Black_28, Close_Black_32_32, _T("PNG"));
 	m_chevronRightButton.LoadStdImageDPI(ChevronRight_Black_16_16, ChevronRight_Black_20_20, ChevronRight_Black_24_24, ChevronRight_Black_28, ChevronRight_Black_32_32, _T("PNG"));
@@ -108,7 +114,7 @@ UINT CDittoWindow::DoNcHitTest(CWnd *pWnd, CPoint point)
 			return HTBOTTOMLEFT;
 	}
 
-	if((((m_lTopBorder == CAPTION_BORDER) || (m_lBottomBorder == CAPTION_BORDER)) && 
+	if((((m_lTopBorder == m_captionBorderWidth) || (m_lBottomBorder == m_captionBorderWidth)) &&
 		(m_bMinimized)) == false)
 	{
 		if (point.y < crWindow.top + BORDER * 2)
@@ -117,7 +123,7 @@ UINT CDittoWindow::DoNcHitTest(CWnd *pWnd, CPoint point)
 			return HTBOTTOM;
 	}
 
-	if((((m_lLeftBorder == CAPTION_BORDER) || (m_lRightBorder == CAPTION_BORDER)) && 
+	if((((m_lLeftBorder == m_captionBorderWidth) || (m_lRightBorder == m_captionBorderWidth)) &&
 		(m_bMinimized)) == false)
 	{
 		if (point.x > crWindow.right - BORDER * 2)
@@ -126,22 +132,22 @@ UINT CDittoWindow::DoNcHitTest(CWnd *pWnd, CPoint point)
 			return HTLEFT;
 	}
 
-	if(m_lRightBorder == CAPTION_BORDER)
+	if(m_lRightBorder == m_captionBorderWidth)
 	{
 		if (point.x > crWindow.right - m_lRightBorder)
 			return HTCAPTION;
 	}
-	else if(m_lBottomBorder == CAPTION_BORDER)
+	else if(m_lBottomBorder == m_captionBorderWidth)
 	{
 		if(point.y > crWindow.bottom - m_lBottomBorder)
 			return HTCAPTION;
 	}
-	else if(m_lLeftBorder == CAPTION_BORDER)
+	else if(m_lLeftBorder == m_captionBorderWidth)
 	{
 		if (point.x < crWindow.left + m_lLeftBorder)
 			return HTCAPTION;
 	}
-	else if(m_lTopBorder == CAPTION_BORDER)
+	else if(m_lTopBorder == m_captionBorderWidth)
 	{
 		if (point.y < crWindow.top + m_lTopBorder)
 			return HTCAPTION;
@@ -269,15 +275,15 @@ void CDittoWindow::DoNcPaint(CWnd *pWnd)
 	CRect textRect;	
 
 	BOOL bVertical = FALSE;
-	if(m_lRightBorder == CAPTION_BORDER)
+	if(m_lRightBorder == m_captionBorderWidth)
 	{
-		rightRect.SetRect(rcBorder.right - CAPTION_BORDER+ border, rcBorder.top, rcBorder.right, rcBorder.top + IndexToPos(index, false));
-		leftRect.SetRect(rcBorder.right - CAPTION_BORDER+ border, rcBorder.top + IndexToPos(index, false), rcBorder.right, rcBorder.bottom);
+		rightRect.SetRect(rcBorder.right - (m_captionBorderWidth - border), rcBorder.top, rcBorder.right, rcBorder.top + IndexToPos(index, false));
+		leftRect.SetRect(rcBorder.right - (m_captionBorderWidth - border), rcBorder.top + IndexToPos(index, false), rcBorder.right, rcBorder.bottom);
 		
-		textRect.SetRect(rcBorder.right + theApp.m_metrics.ScaleX(2), rightRect.bottom + theApp.m_metrics.ScaleX(10), rcBorder.right - CAPTION_BORDER + theApp.m_metrics.ScaleX(0), rcBorder.bottom - theApp.m_metrics.ScaleX(50));
+		textRect.SetRect(rcBorder.right, rightRect.bottom + theApp.m_metrics.ScaleX(10), rcBorder.right - m_captionBorderWidth, rcBorder.bottom - theApp.m_metrics.ScaleX(1));
 
-		int left = rcBorder.right - theApp.m_metrics.ScaleX(19);
-		int right = rcBorder.right - theApp.m_metrics.ScaleX(3);
+		int left = rightRect.left;
+		int right = rightRect.right;
 
 		int top = IndexToPos(closeIndex, false);
 		m_crCloseBT.SetRect(left, top, right, top+ widthHeight);
@@ -296,15 +302,15 @@ void CDittoWindow::DoNcPaint(CWnd *pWnd)
 
 		bVertical = TRUE;
 	}
-	else if(m_lLeftBorder == CAPTION_BORDER)
+	else if(m_lLeftBorder == m_captionBorderWidth)
 	{
-		rightRect.SetRect(rcBorder.left, rcBorder.top, rcBorder.left + CAPTION_BORDER - border, rcBorder.top + IndexToPos(index, false));
-		leftRect.SetRect(rcBorder.left, rcBorder.top + IndexToPos(index, false), rcBorder.left + CAPTION_BORDER - border, rcBorder.bottom);
+		rightRect.SetRect(rcBorder.left, rcBorder.top, rcBorder.left + m_captionBorderWidth - border, rcBorder.top + IndexToPos(index, false));
+		leftRect.SetRect(rcBorder.left, rcBorder.top + IndexToPos(index, false), rcBorder.left + m_captionBorderWidth - border, rcBorder.bottom);
 
-		textRect.SetRect(rcBorder.left + CAPTION_BORDER - theApp.m_metrics.ScaleX(0), rightRect.bottom + theApp.m_metrics.ScaleX(10), rcBorder.left - theApp.m_metrics.ScaleX(5), rcBorder.bottom - theApp.m_metrics.ScaleX(50));
+		textRect.SetRect(rcBorder.left + m_captionBorderWidth - theApp.m_metrics.ScaleX(0), rightRect.bottom + theApp.m_metrics.ScaleX(10), rcBorder.left - theApp.m_metrics.ScaleX(5), rcBorder.bottom - theApp.m_metrics.ScaleX(1));
 
-		int left = theApp.m_metrics.ScaleX(5);
-		int right = theApp.m_metrics.ScaleX(21);
+		int left = rightRect.left;
+		int right = rightRect.right;
 
 		int top = IndexToPos(closeIndex, false);
 		m_crCloseBT.SetRect(left, top, right, top + widthHeight);
@@ -322,15 +328,15 @@ void CDittoWindow::DoNcPaint(CWnd *pWnd)
 
 		bVertical = TRUE;
 	}
-	else if(m_lTopBorder == CAPTION_BORDER)
+	else if(m_lTopBorder == m_captionBorderWidth)
 	{
-		leftRect.SetRect(rcBorder.left, rcBorder.top, rcBorder.right - IndexToPos(index-1, true)- theApp.m_metrics.ScaleX(8), CAPTION_BORDER);
-		rightRect.SetRect(leftRect.right, rcBorder.top, rcBorder.right, CAPTION_BORDER);
+		leftRect.SetRect(rcBorder.left, rcBorder.top, rcBorder.right - IndexToPos(index-1, true)- theApp.m_metrics.ScaleX(8), m_captionBorderWidth);
+		rightRect.SetRect(leftRect.right, rcBorder.top, rcBorder.right, m_captionBorderWidth);
 
 		textRect.SetRect(leftRect.right, leftRect.top, leftRect.right, leftRect.bottom);
 
-		int top = theApp.m_metrics.ScaleX(5);
-		int bottom = theApp.m_metrics.ScaleX(21);
+		int top = rightRect.top;
+		int bottom = rightRect.bottom;
 
 		int left = rcBorder.right - IndexToPos(closeIndex, true);
 		m_crCloseBT.SetRect(left, top, left + widthHeight, bottom);
@@ -348,15 +354,15 @@ void CDittoWindow::DoNcPaint(CWnd *pWnd)
 		
 		bVertical = FALSE;
 	}
-	else if(m_lBottomBorder == CAPTION_BORDER)
+	else if(m_lBottomBorder == m_captionBorderWidth)
 	{
-		leftRect.SetRect(rcBorder.left, rcBorder.bottom-CAPTION_BORDER+ border, rcBorder.right - IndexToPos(index - 1, true) - theApp.m_metrics.ScaleX(8), rcBorder.bottom);
-		rightRect.SetRect(leftRect.right, rcBorder.bottom - CAPTION_BORDER+ border, rcBorder.right, rcBorder.bottom);
+		leftRect.SetRect(rcBorder.left, rcBorder.bottom- m_captionBorderWidth - border, rcBorder.right - IndexToPos(index - 1, true) - theApp.m_metrics.ScaleX(8), rcBorder.bottom);
+		rightRect.SetRect(leftRect.right, rcBorder.bottom - m_captionBorderWidth - border, rcBorder.right, rcBorder.bottom);
 
 		textRect.SetRect(leftRect.right, leftRect.top, leftRect.right, leftRect.bottom);
 
-		int top = leftRect.top + theApp.m_metrics.ScaleX(4);
-		int bottom = leftRect.top + theApp.m_metrics.ScaleX(20);
+		int top = rightRect.top;
+		int bottom = rightRect.bottom;
 
 		int left = rcBorder.right - IndexToPos(closeIndex, true);
 		m_crCloseBT.SetRect(left, top, left + widthHeight, bottom);
@@ -411,127 +417,24 @@ void CDittoWindow::DoNcPaint(CWnd *pWnd)
 
 		flags |= DT_VCENTER;
 	}
+	else
+	{
+		CRect size(0, 0, 0, 0);
+		dc.DrawText(csText, size, DT_CALCRECT| DT_SINGLELINE);
+
+		int rectWidth = textRect.left - textRect.right;
+		int offset = rectWidth / 2 - m_titleTextHeight / 2;
+		//textRect.right += 30;
+		//I don't understand where the 4 is coming from but it's always 4 pixals from the right so adjust for this
+		textRect.left -= (offset - theApp.m_metrics.ScaleX(4));		
+
+		int k = 0;
+	}
 
 	dc.DrawText(csText, textRect, flags);
 
 	dc.SelectObject(pOldFont);
 	dc.SetBkMode(nOldBKMode);
-
-
-/*
-
-	int r1 = GetRValue(m_CaptionColorLeft);
-	int g1 = GetGValue(m_CaptionColorLeft);
-	int b1 = GetBValue(m_CaptionColorLeft);
-
-	int r2 = GetRValue(m_CaptionColorRight);
-	int g2 = GetGValue(m_CaptionColorRight);
-	int b2 = GetBValue(m_CaptionColorRight);
-
-	bool bGradient = true;
-	if(m_CaptionColorLeft == m_CaptionColorRight)
-	{
-		bGradient = false;
-	}
-
-	HBRUSH color;
-	long lHeight = rcBorder.Height();
-	CRect cr = rcBorder;
-	long lCount = rcBorder.Width();
-	if(bVertical)
-		lCount = lHeight;
-
-	for(int i = 0; i < lCount; i++) 
-	{
-		int r, g, b;
-		r = r1 + (i * (r2 - r1) / lCount);
-		g = g1 + (i * (g2 - g1) / lCount);
-		b = b1 + (i * (b2 - b1) / lCount);
-
-		if(bVertical)
-		{
-			cr.top = i;
-			cr.bottom = i + 1;
-		}
-		else
-		{
-			cr.left = i;
-			cr.right = i + 1;
-		}
-
-		if(bGradient || i == 0)
-		{
-			color = CreateSolidBrush(RGB(r, g, b));
-		}
-
-		::FillRect(dc, &cr, color);
-
-		if(bGradient)
-			DeleteObject(color);
-	}
-
-	if(bGradient == false)
-		DeleteObject(color);
-
-	int nOldBKMode = dc.SetBkMode(TRANSPARENT);
-	COLORREF oldColor = dc.SetTextColor(m_CaptionTextColor);
-
-	CFont *pOldFont = NULL;
-	if(bVertical)
-		pOldFont=dc.SelectObject(&m_VertFont);
-	else
-		pOldFont=dc.SelectObject(&m_HorFont);
-
-	CString csText = m_customWindowTitle;
-	if (m_useCustomWindowTitle == false)
-	{
-		pWnd->GetWindowText(csText);
-	}
-
-	if(m_lRightBorder == CAPTION_BORDER)
-	{
-		int nTop = largeBorder;
-		if (m_bDrawClose)
-			nTop += widthHeight + largeBorder;
-		if (m_bDrawMaximize)
-			nTop += widthHeight + largeBorder;
-		if (m_bDrawMaximize)
-			nTop += widthHeight + largeBorder;
-		cr.SetRect(rcBorder.right - 1, nTop, rcBorder.right - theApp.m_metrics.ScaleX(13), rcBorder.bottom - theApp.m_metrics.ScaleY(20));
-		dc.DrawText(csText, cr, DT_SINGLELINE);
-	}
-	else if(m_lBottomBorder == CAPTION_BORDER)
-	{
-		cr.SetRect(theApp.m_metrics.ScaleX(20), rcBorder.bottom - theApp.m_metrics.ScaleY(15), rcBorder.right - theApp.m_metrics.ScaleX(20), rcBorder.bottom - 1);
-		dc.DrawText(csText, cr, DT_SINGLELINE);
-	}
-	else if(m_lLeftBorder == CAPTION_BORDER)
-	{
-		int nTop = largeBorder;
-		if(m_bDrawClose)
-			nTop += widthHeight + largeBorder;
-		if(m_bDrawMaximize)
-			nTop += widthHeight + largeBorder;
-		if(m_bDrawMaximize)
-			nTop += widthHeight + largeBorder;
-
-		cr.SetRect(theApp.m_metrics.ScaleX(15) , nTop, 2, rcBorder.bottom - theApp.m_metrics.ScaleY(20));
-		dc.DrawText(csText, cr, DT_SINGLELINE);
-	}
-	else if(m_lTopBorder == CAPTION_BORDER)
-	{
-		cr.SetRect(theApp.m_metrics.ScaleX(20), 1, rcBorder.right - theApp.m_metrics.ScaleX(20), theApp.m_metrics.ScaleY(15));
-		dc.DrawText(csText, cr, DT_SINGLELINE);
-	}
-
-	
-	DrawChevronBtn(dc, pWnd);
-	DrawMaximizeBtn(dc, pWnd);
-	DrawMinimizeBtn(dc);
-
-	dc.SelectObject(pOldFont);
-	dc.SetTextColor(oldColor);
-	dc.SetBkMode(nOldBKMode);*/
 
 	DrawWindowIcon(dc, pWnd);
 	DrawChevronBtn(dc, pWnd);
@@ -559,8 +462,8 @@ void CDittoWindow::DoSetRegion(CWnd *pWnd)
 	int fifteen = theApp.m_metrics.ScaleX(15);
 	int one = theApp.m_metrics.ScaleX(1);
 	
-	if((m_lRightBorder == CAPTION_BORDER) ||
-		(m_lTopBorder == CAPTION_BORDER))
+	if((m_lRightBorder == m_captionBorderWidth) ||
+		(m_lTopBorder == m_captionBorderWidth))
 	{		
 		rgnRect.CreateRectRgn(0, 0, rect.Width() - seven, rect.Height());
 		rgnRound.CreateRoundRectRgn(0, 0, rect.Width() + one, rect.Height(), fifteen, fifteen);
@@ -575,7 +478,7 @@ void CDittoWindow::DoSetRegion(CWnd *pWnd)
 		//Set the region
 		pWnd->SetWindowRgn(rgnFinalA, TRUE);
 	}
-	else if(m_lLeftBorder == CAPTION_BORDER)
+	else if(m_lLeftBorder == m_captionBorderWidth)
 	{
 		rgnRect.CreateRectRgn(0, seven, rect.Width(), rect.Height());
 		rgnRound.CreateRoundRectRgn(0, 0, rect.Width(), rect.Height(), fifteen, fifteen);
@@ -589,7 +492,7 @@ void CDittoWindow::DoSetRegion(CWnd *pWnd)
 
 		pWnd->SetWindowRgn(rgnFinalA, TRUE);
 	}
-	else if(m_lBottomBorder == CAPTION_BORDER)
+	else if(m_lBottomBorder == m_captionBorderWidth)
 	{
 		rgnRect.CreateRectRgn(0, 0, rect.Width(), rect.Height() - seven);
 		rgnRound.CreateRoundRectRgn(0, 0, rect.Width() + one, rect.Height() + one, fifteen, fifteen);
@@ -614,11 +517,11 @@ void CDittoWindow::DrawChevronBtn(CWindowDC &dc, CWnd *pWnd)
 		
 	if(this->m_bMinimized)
 	{
-		m_chevronLeftButton.Draw(&dc, pWnd, m_crChevronBT.left, m_crChevronBT.top, m_bMouseOverChevron, m_bMouseDownOnChevron);
+		m_chevronLeftButton.Draw(&dc, pWnd, m_crChevronBT, m_bMouseOverChevron, m_bMouseDownOnChevron);
 	}
 	else
 	{
-		m_chevronRightButton.Draw(&dc, pWnd, m_crChevronBT.left, m_crChevronBT.top, m_bMouseOverChevron, m_bMouseDownOnChevron);
+		m_chevronRightButton.Draw(&dc, pWnd, m_crChevronBT, m_bMouseOverChevron, m_bMouseDownOnChevron);
 	}
 }
 
@@ -634,7 +537,7 @@ void CDittoWindow::DrawCloseBtn(CWindowDC &dc, CWnd *pWnd)
 		return;
 	}
 	
-	m_closeButton.Draw(&dc, pWnd, m_crCloseBT.left, m_crCloseBT.top, m_bMouseOverClose, m_bMouseDownOnClose);
+	m_closeButton.Draw(&dc, pWnd, m_crCloseBT, m_bMouseOverClose, m_bMouseDownOnClose);
 }
 
 void CDittoWindow::DrawMinimizeBtn(CWindowDC &dc, CWnd *pWnd)
@@ -644,7 +547,7 @@ void CDittoWindow::DrawMinimizeBtn(CWindowDC &dc, CWnd *pWnd)
 		return;
 	}
 
-	m_minimizeButton.Draw(&dc, pWnd, m_crMinimizeBT.left, m_crMinimizeBT.top, m_bMouseOverClose, m_bMouseDownOnClose);
+	m_minimizeButton.Draw(&dc, pWnd, m_crMinimizeBT, m_bMouseOverMinimize, m_bMouseDownOnMinimize);
 }
 
 void CDittoWindow::DrawMaximizeBtn(CWindowDC &dc, CWnd *pWnd)
@@ -654,11 +557,21 @@ void CDittoWindow::DrawMaximizeBtn(CWindowDC &dc, CWnd *pWnd)
 		return;
 	}
 
-	m_maximizeButton.Draw(&dc, pWnd, m_crMaximizeBT.left, m_crMaximizeBT.top, m_bMouseOverMaximize, m_bMouseDownOnMaximize);
+	m_maximizeButton.Draw(&dc, pWnd, m_crMaximizeBT, m_bMouseOverMaximize, m_bMouseDownOnMaximize);
 }
 
-void CDittoWindow::DoNcLButtonDown(CWnd *pWnd, UINT nHitTest, CPoint point) 
+int CDittoWindow::DoNcLButtonDown(CWnd *pWnd, UINT nHitTest, CPoint point) 
 {
+	switch (nHitTest)
+	{
+	case HTCAPTION:
+		m_buttonDownOnCaption = true;
+		break;
+	default:
+		m_buttonDownOnCaption = false;
+	}
+
+	int buttonPressed = 0;
 	//ReleaseCapture();
 	CPoint clPoint(point);
 	pWnd->ScreenToClient(&clPoint);
@@ -674,30 +587,38 @@ void CDittoWindow::DoNcLButtonDown(CWnd *pWnd, UINT nHitTest, CPoint point)
 		//pWnd->UpdateWindow();
 		//DoNcPaint(pWnd);
 		RedrawWindow(pWnd->m_hWnd, NULL, NULL, RDW_FRAME | RDW_INVALIDATE);
+		buttonPressed = BUTTON_CLOSE;
 	}
 	else if(m_crChevronBT.PtInRect(clPoint))
 	{
 		m_bMouseDownOnChevron = true;
 		RedrawWindow(pWnd->m_hWnd, NULL, NULL, RDW_FRAME | RDW_INVALIDATE);
+		buttonPressed = BUTTON_CHEVRON;
 	}
 	else if(m_crMinimizeBT.PtInRect(clPoint))
 	{
 		m_bMouseDownOnMinimize = true;
 		RedrawWindow(pWnd->m_hWnd, NULL, NULL, RDW_FRAME | RDW_INVALIDATE);
+		buttonPressed = BUTTON_MINIMIZE;
 	}
 	else if(m_crMaximizeBT.PtInRect(clPoint))
 	{
 		m_bMouseDownOnMaximize = true;
 		RedrawWindow(pWnd->m_hWnd, NULL, NULL, RDW_FRAME | RDW_INVALIDATE);
+		buttonPressed = BUTTON_MAXIMIZE;
 	}
 	else if(m_bMinimized)
 	{
 		//MinMaxWindow(FORCE_MAX);
 	}
+
+	return buttonPressed;
 }
 
 long CDittoWindow::DoNcLButtonUp(CWnd *pWnd, UINT nHitTest, CPoint point) 
 {
+	m_buttonDownOnCaption = false;
+
 	CRect crWindow;
 	pWnd->GetWindowRect(crWindow);
 
@@ -824,21 +745,36 @@ bool CDittoWindow::DoPreTranslateMessage(MSG* pMsg)
 	return true;
 }
 
-void CDittoWindow::SetCaptionOn(CWnd *pWnd, int nPos, bool bOnstartup)
+void CDittoWindow::SetCaptionOn(CWnd *pWnd, int nPos, bool bOnstartup, int captionSize, int captionFontSize)
 {
+	m_VertFont.Detach();
+	m_VertFont.CreateFont(theApp.m_metrics.PointsToPixels(captionFontSize), 0, -900, 0, 400, FALSE, FALSE, 0, DEFAULT_CHARSET,
+		OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+		DEFAULT_PITCH | FF_SWISS, _T("Segoe UI"));
+
+	m_HorFont.Detach();
+	m_HorFont.CreateFont(theApp.m_metrics.PointsToPixels(captionFontSize), 0, 0, 0, 500, FALSE, FALSE, 0, DEFAULT_CHARSET,
+		OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+		DEFAULT_PITCH | FF_SWISS, _T("Segoe UI"));
+
+	SetTitleTextHeight(pWnd);
+
 	m_lTopBorder = BORDER;
 	m_lRightBorder = BORDER;
 	m_lBottomBorder = BORDER;
 	m_lLeftBorder = BORDER;
 
+	int oldWidth = m_captionBorderWidth;
+	m_captionBorderWidth = theApp.m_metrics.ScaleX(captionSize);	
+
 	if(nPos == CAPTION_RIGHT)
-		m_lRightBorder = CAPTION_BORDER;
+		m_lRightBorder = m_captionBorderWidth;
 	if(nPos == CAPTION_BOTTOM)
-		m_lBottomBorder = CAPTION_BORDER;
+		m_lBottomBorder = m_captionBorderWidth;
 	if(nPos == CAPTION_LEFT)
-		m_lLeftBorder = CAPTION_BORDER;
+		m_lLeftBorder = m_captionBorderWidth;
 	if(nPos == CAPTION_TOP)
-		m_lTopBorder = CAPTION_BORDER;
+		m_lTopBorder = m_captionBorderWidth;
 
 	DoSetRegion(pWnd);
 
@@ -849,6 +785,21 @@ void CDittoWindow::SetCaptionOn(CWnd *pWnd, int nPos, bool bOnstartup)
 
 	pWnd->Invalidate();
 	pWnd->RedrawWindow();
+
+	if (oldWidth != m_captionBorderWidth)
+	{
+		::SetWindowPos(pWnd->m_hWnd, NULL, 0, 0, 0, 0, SWP_DRAWFRAME | SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+	}
+}
+
+void CDittoWindow::SetTitleTextHeight(CWnd *pWnd)
+{
+	CWindowDC dc(pWnd);
+	CFont *pOldFont = dc.SelectObject(&m_HorFont);
+	CRect size(0, 0, 0, 0);
+	dc.DrawText(_T("W"), size, DT_CALCRECT);
+	m_titleTextHeight = size.Height();
+	dc.SelectObject(pOldFont);
 }
 
 bool CDittoWindow::SetCaptionColors(COLORREF left, COLORREF right, COLORREF border)
@@ -863,4 +814,203 @@ bool CDittoWindow::SetCaptionColors(COLORREF left, COLORREF right, COLORREF bord
 void CDittoWindow::SetCaptionTextColor(COLORREF color)
 {
 	m_CaptionTextColor = color;
+}
+
+void CDittoWindow::SnapToEdge(CWnd *pWnd, WINDOWPOS* lpwndpos)
+{
+	if (lpwndpos->cx == 0 &&
+		lpwndpos->cy == 0)
+	{
+		return;
+	}
+
+	const char threshold = 12;
+	RECT rect = { 0 };
+	HMONITOR hMonitor;
+	MONITORINFO mi;
+
+	// Grab information about our monitors
+	// For multi-monitor support, we use this instead of SystemParametersInfo(SPI_GETWORKAREA, 0, &rect, 0);
+	hMonitor = MonitorFromWindow(pWnd->m_hWnd, MONITOR_DEFAULTTONEAREST);
+	mi.cbSize = sizeof(mi);
+	GetMonitorInfo(hMonitor, &mi);
+	rect = mi.rcWork;
+
+	bool edgeMove = true;
+	bool captionMove = false;
+
+	if (m_buttonDownOnCaption)
+	{
+		edgeMove = false;
+		captionMove = true;
+	}
+
+	// Snap to left
+	if (lpwndpos->x >= (rect.left - threshold) &&
+		lpwndpos->x <= (rect.left + threshold))
+	{
+		if (edgeMove)
+		{
+			int diff = lpwndpos->x - rect.left;
+			lpwndpos->cx += diff;
+		}
+		if (edgeMove || captionMove)
+		{
+			lpwndpos->x = rect.left;
+		}
+	}
+
+	// Snap to right
+	if ((lpwndpos->x + lpwndpos->cx) >= (rect.right - threshold) &&
+		(lpwndpos->x + lpwndpos->cx) <= (rect.right + threshold))
+	{
+		if (edgeMove)
+		{
+			int diff = rect.right - (lpwndpos->x + lpwndpos->cx);
+			lpwndpos->cx += diff;
+		}
+		if (captionMove)
+		{
+			lpwndpos->x = (rect.right - lpwndpos->cx);
+		}
+	}
+
+	// Snap to top
+	if (lpwndpos->y >= (rect.top - threshold) &&
+		lpwndpos->y <= (rect.top + threshold))
+	{
+		if (edgeMove)
+		{
+			int diff = lpwndpos->y - rect.top;
+			lpwndpos->cy += diff;
+		}
+		if (edgeMove || captionMove)
+		{
+			lpwndpos->y = rect.top;
+		}
+	}
+
+	// Snap to bottom
+	if ((lpwndpos->y + lpwndpos->cy) >= (rect.bottom - threshold) &&
+		(lpwndpos->y + lpwndpos->cy) <= (rect.bottom + threshold))
+	{
+		if (edgeMove)
+		{
+			int diff = rect.bottom - (lpwndpos->y + lpwndpos->cy);
+			lpwndpos->cy += diff;
+		}
+		if (captionMove)
+		{
+			lpwndpos->y = (rect.bottom - lpwndpos->cy);
+		}
+	}
+}
+
+void CDittoWindow::MinMaxWindow(CWnd *pWnd, long lOption)
+{
+	if ((m_bMinimized) && (lOption == FORCE_MIN))
+		return;
+
+	if ((m_bMinimized == false) && (lOption == FORCE_MAX))
+		return;
+
+	if (m_lRightBorder == m_captionBorderWidth)
+	{
+		if (m_bMinimized == false)
+		{
+			pWnd->GetWindowRect(m_crFullSizeWindow);
+			pWnd->MoveWindow(m_crFullSizeWindow.right - m_captionBorderWidth,
+				m_crFullSizeWindow.top, m_captionBorderWidth,
+				m_crFullSizeWindow.Height());
+			m_bMinimized = true;
+			m_TimeMinimized = COleDateTime::GetCurrentTime();
+		}
+		else
+		{
+			CRect cr;
+			pWnd->GetWindowRect(cr);
+			pWnd->MoveWindow(cr.right - m_crFullSizeWindow.Width(),
+				cr.top, m_crFullSizeWindow.Width(), cr.Height());
+
+			m_crFullSizeWindow.SetRectEmpty();
+			m_bMinimized = false;
+			m_TimeMaximized = COleDateTime::GetCurrentTime();
+			::SetForegroundWindow(pWnd->GetSafeHwnd());
+		}
+	}
+	if (m_lLeftBorder == m_captionBorderWidth)
+	{
+		if (m_bMinimized == false)
+		{
+			pWnd->GetWindowRect(m_crFullSizeWindow);
+			pWnd->MoveWindow(m_crFullSizeWindow.left,
+				m_crFullSizeWindow.top, m_captionBorderWidth,
+				m_crFullSizeWindow.Height());
+			m_bMinimized = true;
+			m_TimeMinimized = COleDateTime::GetCurrentTime();
+		}
+		else
+		{
+			CRect cr;
+			pWnd->GetWindowRect(cr);
+			pWnd->MoveWindow(cr.left, cr.top,
+				m_crFullSizeWindow.Width(), cr.Height());
+
+			m_crFullSizeWindow.SetRectEmpty();
+			m_bMinimized = false;
+			m_TimeMaximized = COleDateTime::GetCurrentTime();
+			::SetForegroundWindow(pWnd->GetSafeHwnd());
+		}
+	}
+	else if (m_lTopBorder == m_captionBorderWidth)
+	{
+		if (m_bMinimized == false)
+		{
+			pWnd->GetWindowRect(m_crFullSizeWindow);
+			pWnd->MoveWindow(m_crFullSizeWindow.left,
+				m_crFullSizeWindow.top,
+				m_crFullSizeWindow.Width(),
+				m_captionBorderWidth);
+			m_bMinimized = true;
+			m_TimeMinimized = COleDateTime::GetCurrentTime();
+		}
+		else
+		{
+			CRect cr;
+			pWnd->GetWindowRect(cr);
+			pWnd->MoveWindow(cr.left, cr.top,
+				cr.Width(), m_crFullSizeWindow.Height());
+
+			m_crFullSizeWindow.SetRectEmpty();
+			m_bMinimized = false;
+			m_TimeMaximized = COleDateTime::GetCurrentTime();
+			::SetForegroundWindow(pWnd->GetSafeHwnd());
+		}
+	}
+	else if (m_lBottomBorder == m_captionBorderWidth)
+	{
+		if (m_bMinimized == false)
+		{
+			pWnd->GetWindowRect(m_crFullSizeWindow);
+			pWnd->MoveWindow(m_crFullSizeWindow.left,
+				m_crFullSizeWindow.bottom - m_captionBorderWidth,
+				m_crFullSizeWindow.Width(),
+				m_captionBorderWidth);
+			m_bMinimized = true;
+			m_TimeMinimized = COleDateTime::GetCurrentTime();
+		}
+		else
+		{
+			CRect cr;
+			pWnd->GetWindowRect(cr);
+			pWnd->MoveWindow(cr.left,
+				cr.bottom - m_crFullSizeWindow.Height(),
+				cr.Width(), m_crFullSizeWindow.Height());
+
+			m_crFullSizeWindow.SetRectEmpty();
+			m_bMinimized = false;
+			m_TimeMaximized = COleDateTime::GetCurrentTime();
+			::SetForegroundWindow(pWnd->GetSafeHwnd());
+		}
+	}
 }

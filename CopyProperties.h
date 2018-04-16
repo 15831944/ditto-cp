@@ -64,6 +64,8 @@ protected:
 	bool m_bHandleKillFocus;
 	bool m_bSetToTopMost;
 	CClip *m_pMemoryClip;
+	CBrush m_brush;
+	CClip m_clip;
 
 	void LoadDataIntoCClip(CClip &Clip);
 	void LoadDataFromCClip(CClip &Clip);
@@ -80,6 +82,9 @@ protected:
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
+public:
+	afx_msg HBRUSH OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor);
+	afx_msg void OnLbnSelchangeCopyData();
 };
 
 //{{AFX_INSERT_LOCATION}}

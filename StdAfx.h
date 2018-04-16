@@ -19,8 +19,8 @@
 
 #define HITTEST_RET LRESULT
 
-#define _WIN32_WINNT 0x0600
-#define WINVER 0x0600
+#define _WIN32_WINNT 0x0605
+#define WINVER 0x0605
 
 #define VC_EXTRALEAN		// Exclude rarely-used stuff from Windows headers
 
@@ -39,6 +39,8 @@
 #include <imm.h>
 #include <afxcontrolbars.h>
 #import "riched20.dll" raw_interfaces_only, raw_native_types, no_namespace, named_guids, exclude("UINT_PTR"), exclude("LONG_PTR") 
+
+#pragma comment(linker, "\"/manifestdependency:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 #include <gdiplus.h>
 #include <afxdlgs.h>

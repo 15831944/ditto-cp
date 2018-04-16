@@ -7,6 +7,9 @@
 #include "Tlhelp32.h"
 #include <Wininet.h>
 #include "sqlite\utext.h"
+#include <sys/types.h>  
+#include <sys/stat.h> 
+#include "Path.h"
 
 CString GetIPAddress()
 {
@@ -636,7 +639,7 @@ int GetMonitorFromRect(LPRECT lpMonitorRect)
 	EnumParam.iMonitor = -1;
 	
 	// Enum Displays
-	EnumDisplayMonitors(NULL, NULL, MyMonitorEnumProc, (long)&EnumParam);
+	EnumDisplayMonitors(NULL, NULL, MyMonitorEnumProc, (LPARAM)&EnumParam);
 	
 	// Return the result
 	return EnumParam.iMonitor;
@@ -654,7 +657,7 @@ void GetMonitorRect(int iMonitor, LPRECT lpDestRect)
 	lpDestRect->bottom = lpDestRect->left = lpDestRect->right = lpDestRect->top = 0;
 	
 	// Enum Displays
-	EnumDisplayMonitors(NULL, NULL, MyMonitorEnumProc, (long)&EnumParam);
+	EnumDisplayMonitors(NULL, NULL, MyMonitorEnumProc, (LPARAM)&EnumParam);
 	
 	// If not successful, default to the screen dimentions
 	if(lpDestRect->right == 0 || lpDestRect->bottom == 0)
@@ -878,6 +881,44 @@ __int64 GetLastWriteTime(const CString &csFile)
 	return nLastWrite;
 }
 
+typedef struct 
+{
+	DWORD ownerpid;
+	DWORD childpid;
+} windowinfo;
+
+BOOL CALLBACK EnumChildWindowsCallback(HWND hWnd, LPARAM lp) 
+{
+	windowinfo* info = (windowinfo*)lp;
+	DWORD pid = 0;
+	GetWindowThreadProcessId(hWnd, &pid);
+	if (pid != info->ownerpid) 
+		info->childpid = pid;
+	return TRUE;
+}
+
+CString UWP_AppName(HWND active_window, DWORD ownerpid)
+{
+	CString uwpAppName;
+	windowinfo info = { 0 };
+	info.ownerpid = ownerpid;
+	info.childpid = info.ownerpid;
+	EnumChildWindows(active_window, EnumChildWindowsCallback, (LPARAM)&info);
+	HANDLE active_process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, info.childpid);
+	if (active_process != NULL)
+	{
+		WCHAR image_name[MAX_PATH] = { 0 };
+		DWORD bufsize = MAX_PATH;
+		QueryFullProcessImageName(active_process, 0, image_name, &bufsize);
+		CloseHandle(active_process);
+
+		nsPath::CPath path(image_name);
+		uwpAppName = path.GetName();
+	}
+
+	return uwpAppName;
+}
+
 CString GetProcessName(HWND hWnd, DWORD processId) 
 {
 	DWORD startTick = GetTickCount();
@@ -889,7 +930,19 @@ CString GetProcessName(HWND hWnd, DWORD processId)
 		GetWindowThreadProcessId(hWnd, &Id);
 	}
 
-	PROCESSENTRY32 processEntry = { 0 };
+	HANDLE active_process = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, Id);
+	if (active_process != NULL)
+	{
+		WCHAR image_name[MAX_PATH] = { 0 };
+		DWORD bufsize = MAX_PATH;
+		QueryFullProcessImageName(active_process, 0, image_name, &bufsize);
+		CloseHandle(active_process);
+
+		nsPath::CPath path(image_name);
+		strProcessName = path.GetName();
+	}
+
+	/*PROCESSENTRY32 processEntry = { 0 };
 
 	HANDLE hSnapShot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
 	processEntry.dwSize = sizeof(PROCESSENTRY32);
@@ -906,7 +959,13 @@ CString GetProcessName(HWND hWnd, DWORD processId)
 		} while(Process32Next(hSnapShot, &processEntry));
 	}
 
-	CloseHandle(hSnapShot);
+	CloseHandle(hSnapShot);*/
+
+	//uwp apps are wrapped in another app called, if this has focus then try and find the child uwp process
+	if (strProcessName == _T("ApplicationFrameHost.exe"))
+	{
+		strProcessName = UWP_AppName(hWnd, Id);
+	}
 
 	DWORD endTick = GetTickCount();
 	DWORD diff = endTick - startTick;
@@ -1038,8 +1097,8 @@ void DeleteFolderFiles(CString csDir, BOOL checkFileLastAccess)
 
 __int64 FileSize(const TCHAR *fileName)
 {
-	__stat64 buf;
-	if (_wstat64(fileName, &buf) != 0)
+	struct _stat64  buf;
+	if (_wstat64((wchar_t const*)fileName, &buf) != 0)
 		return -1; // error, could use errno to find out more
 
 	return buf.st_size;
@@ -1063,11 +1122,12 @@ int FindNoCaseAndInsert(CString& mainStr, CString& findStr, CString preInsert, C
 
 		//use icu::UnicodeString because it handles upper/lowercase characters for all languages, CSTring only hanldes ascii characters
 		icu::UnicodeString mainLow(mainStr);
-		mainLow.toLower();
+		mainLow.foldCase(U_FOLD_CASE_DEFAULT);
 
 		icu::UnicodeString findLow(findStr);
-		findLow.toLower();
+		findLow.foldCase(U_FOLD_CASE_DEFAULT);
 
+		
 		int preLength = preInsert.GetLength();
 		int postLength = postInsert.GetLength();
 
@@ -1140,9 +1200,10 @@ int FindNoCaseAndInsert(CString& mainStr, CString& findStr, CString preInsert, C
 
 		if(replaceCount > 0)
 		{
-			mainStr.Replace(_T("\r\n"), _T("<br>"));
-			int l = mainStr.Replace(_T("\r"), _T("<br>"));
-			int m = mainStr.Replace(_T("\n"), _T("<br>"));
+			//use unprintable characters so it doesn't find copied html to convert
+			mainStr.Replace(_T("\r\n"), _T("\x01\x05\x02"));
+			int l = mainStr.Replace(_T("\r"), _T("\x01\x05\x02"));
+			int m = mainStr.Replace(_T("\n"), _T("\x01\x05\x02"));
 		}
 	}
 
@@ -1267,43 +1328,114 @@ CString InternetEncode(CString text)
 	return ret;
 }
 
-bool WriteCF_DIBToFile(CString csPath, LPVOID data, ULONG size)
+void DeleteParamFromRTF(CStringA &test, CStringA find, bool searchForTrailingDigits)
 {
-	bool bRet = false;
-	
-	BITMAPINFO *lpBI = (BITMAPINFO *) data;		
+	int start = 0;
 
-	int nPaletteEntries = 1 << lpBI->bmiHeader.biBitCount;
-	if (lpBI->bmiHeader.biBitCount > 8)
-		nPaletteEntries = 0;
-	else if (lpBI->bmiHeader.biClrUsed != 0)
-		nPaletteEntries = lpBI->bmiHeader.biClrUsed;
-
-	BITMAPFILEHEADER BFH;
-	memset(&BFH, 0, sizeof(BITMAPFILEHEADER));
-	BFH.bfType = 'MB';
-	BFH.bfSize = sizeof(BITMAPFILEHEADER) + size;
-	BFH.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + nPaletteEntries * sizeof(RGBQUAD);
-
-	// Create stream with 0 size
-	IStream* pIStream = NULL;
-	if (CreateStreamOnHGlobal(NULL, TRUE, (LPSTREAM*) &pIStream) != S_OK)
+	while (start >= 0)
 	{
-		TRACE("Failed to create stream on global memory!\n");
-		return FALSE;
+		start = test.Find(find, start);
+		if (start >= 0)
+		{
+			if (start > 0)
+			{
+				//leave it if the preceding character is \\, i was seeing the double slash if the actual text contained slash
+				if (test[start - 1] == '\\')
+				{
+					start++;
+					continue;
+				}
+			}
+
+			int end = -1;	
+			int innerStart = start + find.GetLength();
+
+			if (searchForTrailingDigits)
+			{
+				for (int i = innerStart; i < test.GetLength(); i++)
+				{
+					if (isdigit(test[i]) == false)
+					{
+						end = i;
+						break;
+					}
+				}
+			}
+			else
+			{
+				end = innerStart;
+			}
+
+			if (end > 0)
+			{
+				if (searchForTrailingDigits == false ||
+					end != innerStart)
+				{
+					test.Delete(start, (end - start));
+				}
+				else
+				{
+					start++;
+				}
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
+}
+
+bool RemoveRTFSection(CStringA &str, CStringA section)
+{
+	bool removedSection = false;
+
+	int start2 = str.Find(section, 0);
+	int end2 = 0;
+	if (start2 >= 0)
+	{
+		int in = 0;
+		for (int pos = start2+1; pos < str.GetLength(); pos++)
+		{
+			if (str[pos] == '{')
+			{
+				in++;
+			}
+
+			if (str[pos] == '}')
+			{
+				if (in > 0)
+				{
+					in--;
+				}
+				else
+				{
+					end2 = pos;
+					break;
+				}
+			}
+		}
+
+		if (end2 > start2)
+		{
+			str.Delete(start2, (end2 - start2) + 1);
+			removedSection = true;
+		}
 	}
 
-	//write the file to the stream object
-	pIStream->Write(&BFH, sizeof(BITMAPFILEHEADER), NULL);
-	pIStream->Write(data, size, NULL);
+	return removedSection;
+}
 
-	CImage i;
-	i.Load(pIStream);
+CString NewGuidString()
+{
+	CString guidString;
 
-	if(i.Save(csPath) == S_OK)
-	{
-		bRet = true;
-	}
+	GUID guid;
+	CoCreateGuid(&guid);
+	guidString.Format(_T("%08lX-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX"),
+		guid.Data1, guid.Data2, guid.Data3,
+		guid.Data4[0], guid.Data4[1], guid.Data4[2], guid.Data4[3],
+		guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);
 
-	return bRet;
+	return guidString;
 }

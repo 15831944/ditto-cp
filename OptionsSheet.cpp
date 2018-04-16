@@ -33,7 +33,7 @@ COptionsSheet::COptionsSheet(LPCTSTR pszCaption, CWnd* pParentWnd, UINT iSelectP
 	m_themeChanged = FALSE;
 	m_pKeyBoardOptions = NULL;
 	m_pGeneralOptions = NULL;
-	m_pQuickPasteOptions = NULL;
+	//m_pQuickPasteOptions = NULL;
 	m_pCopyBuffers = NULL;
 	m_pStats = NULL;
 	m_pTypes = NULL;
@@ -49,7 +49,7 @@ COptionsSheet::COptionsSheet(LPCTSTR pszCaption, CWnd* pParentWnd, UINT iSelectP
 
 	m_pGeneralOptions = new COptionsGeneral;
 	m_pKeyBoardOptions = new COptionsKeyBoard;
-	m_pQuickPasteOptions = new COptionsQuickPaste;
+	//m_pQuickPasteOptions = new COptionsQuickPaste;
 	m_pQuickPasteShortCuts = new CQuickPasteKeyboard;
 
 	m_pCopyBuffers = new COptionsCopyBuffers;
@@ -61,7 +61,7 @@ COptionsSheet::COptionsSheet(LPCTSTR pszCaption, CWnd* pParentWnd, UINT iSelectP
 	AddPage(m_pTypes);
 	AddPage(m_pKeyBoardOptions);
 	AddPage(m_pCopyBuffers);
-	AddPage(m_pQuickPasteOptions);
+	//AddPage(m_pQuickPasteOptions);
 	AddPage(m_pQuickPasteShortCuts);
 	if(g_Opt.GetAllowFriends())
 	{
@@ -70,13 +70,15 @@ COptionsSheet::COptionsSheet(LPCTSTR pszCaption, CWnd* pParentWnd, UINT iSelectP
 	}
 	AddPage(m_pStats);
 	AddPage(m_pAbout);
+
+	
 }
 
 COptionsSheet::~COptionsSheet()
 {
 	delete m_pGeneralOptions;
 	delete m_pKeyBoardOptions;
-	delete m_pQuickPasteOptions;
+	//delete m_pQuickPasteOptions;
 	delete m_pCopyBuffers;
 	delete m_pStats;
 	delete m_pTypes;
@@ -113,9 +115,12 @@ BOOL COptionsSheet::OnInitDialog()
 	m_bModeless = FALSE;   
 	m_nFlags |= WF_CONTINUEMODAL;
 
+	HICON b = (HICON)LoadImage(AfxGetInstanceHandle(), MAKEINTRESOURCE(IDR_MAINFRAME), IMAGE_ICON, 64, 64, LR_SHARED);
+	SetIcon(b, TRUE);
+
 	BOOL bResult = CPropertySheet::OnInitDialog();
 
-	SetWindowText(_T("Ditto"));
+	SetWindowText(_T("Options"));
 
 	theApp.m_Language.UpdateOptionsSheet(this);
 

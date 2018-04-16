@@ -18,6 +18,9 @@
 #include "SpecialPasteOptions.h"
 #include "ClipIds.h"
 #include "SymbolEdit.h"
+#include "Popup.h"
+#include "CustomFriendsHelper.h"
+
 class CMainTable
 {
 public:
@@ -85,6 +88,7 @@ public:
 
 typedef std::map < int, CMainTable > MainTypeMap;
 typedef std::map < int, CClipFormatQListCtrl > CF_DibTypeMap;
+typedef std::map < int, char > CF_NoDibTypeMap;
 
 
 
@@ -147,17 +151,24 @@ public:
     bool m_bModifersMoveActive;
 
     CQPasteWndThread m_thread;
+	CQPasteWndThread m_extraDataThread;
 	std::vector<CMainTable> m_listItems;
 
 	std::list<CPoint> m_loadItems;
     std::list<CClipFormatQListCtrl> m_ExtraDataLoadItems;
     CF_DibTypeMap m_cf_dibCache;
+	CF_NoDibTypeMap m_cf_NO_dibCache;
     CF_DibTypeMap m_cf_rtfCache;
+	CF_NoDibTypeMap m_cf_NO_rtfCache;
     CCriticalSection m_CritSection;
     CAccels m_actions;
+	CAccels m_toolTipActions;
 	CAccels m_modifierKeyActions;
 	bool m_showScrollBars;
 	int m_leftSelectedCompareId;
+	INT64 m_extraDataCounter;
+	CPopup m_popupMsg;
+	CCustomFriendsHelper m_customFriendsHelper;
 
     void RefreshNc();
     void UpdateStatus(bool bRepaintImmediately = false); // regenerates the status (caption) text
@@ -185,7 +196,7 @@ public:
     void SetSendToMenu(CMenu *pMenu, int nMenuID, int nArrayPos);
 	void SetFriendChecks(CMenu *pMenu);
 
-    BOOL SendToFriendbyPos(int nPos);
+    BOOL SendToFriendbyPos(int nPos, CString override_IP_Host);
 
     bool InsertNextNRecords(int nEnd);
 
@@ -193,13 +204,14 @@ public:
 
     void FillMainTable(CMainTable &table, CppSQLite3Query &q);
     void RunThread();
-    void MoveSelection(bool down);
+    void MoveSelection(bool down, bool requireModifersActive);
     void OnKeyStateUp();
     void SetKeyModiferState(bool bActive);
 	void SaveWindowSize();
 	void SelectFocusID();
 	void HideMenuGroup(CMenu* menu, CString text);
 	void SetSearchImages();
+	void RemoveStickyInternal(int id, bool &sort);
 
 	DROPEFFECT OnDragOver(COleDataObject* pDataObject, DWORD dwKeyState, CPoint point);
 	DROPEFFECT OnDragEnter(COleDataObject* pDataObject, DWORD dwKeyState, CPoint point);
@@ -207,7 +219,8 @@ public:
 	void OnDragLeave();
 	COleDropTarget *m_pDropTarget;
 
-	bool DoAction(DWORD actionId);
+	bool DoAction(CAccel a);
+	bool DoAction(DWORD cmd);
 	bool DoActionShowDescription();
 	bool DoActionNextDescription(); 
 	bool DoActionPrevDescription();
@@ -222,6 +235,12 @@ public:
 	bool DoActionShowGroups();
 	bool DoActionNewClip();
 	bool DoActionEditClip();
+	bool DoActionMoveSelectionDown();
+	bool DoActionToggleDescriptionWordWrap();
+	bool DoActionApplyLastSearch();
+	bool DoActionToggleSearchMethod();
+	bool DoActionPasteScript(CString scriptGuid);
+	bool DoActionMoveSelectionUp();
 	bool DoModifierActiveActionSelectionUp();
 	bool DoModifierActiveActionSelectionDown();
 	bool DoModifierActiveActionMoveFirst();
@@ -248,6 +267,7 @@ public:
 	bool DoMoveClipDown();
 	bool DoMoveClipUp();
 	bool DoMoveClipTOP();
+	bool DoMoveClipLast();
 	bool DoFilterOnSelectedClip();
 	bool DoPasteUpperCase();
 	bool DoPasteLowerCase();
@@ -261,25 +281,32 @@ public:
 	bool OnShowFirstTenText();
 	bool OnShowClipWasPasted();
 	bool OnToggleLastGroupToggle();
-	bool OnMakeTopSticky();
+	bool OnMakeTopSticky(bool forceSort);
 	bool OnMakeLastSticky();
-	bool OnRemoveStickySetting();
+	bool OnRemoveStickySetting();	
+	bool DoActionReplaceTopStickyClip();
+	bool DoActionPromptSendToFriend();
+	bool DoActionSaveCF_HDROP_FileData();
+	bool DoActionToggleClipboardConnection();
 
 	bool OnNewClip();
 	bool OnImportClip();
 	bool OnDeleteClipData();
 	bool OnGlobalHotkyes();
-
+	
 	void UpdateMenuShortCut(CCmdUI *pCmdUI, DWORD action);
 
 	bool ShowProperties(int id, int row);
 	bool DeleteClips(CClipIDs &IDs, ARRAY &Indexs);
+	void RemoveFromImageRtfCache(int id);
 	bool SyncClipDataToArrayData(CClip &clip);
 	bool SelectIds(ARRAY &ids);
 
 	void LoadShortcuts();
 
-	void ShowRightClickMenu();;
+	void ShowRightClickMenu();
+
+	void SetCurrentTransparency();
 
     // Generated message map functions
 protected:
@@ -288,6 +315,7 @@ protected:
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
     afx_msg void OnSize(UINT nType, int cx, int cy);
     afx_msg void OnSetFocus(CWnd *pOldWnd);
+	afx_msg void OnKillFocus(CWnd *pOldWnd);
     afx_msg void OnActivate(UINT nState, CWnd *pWndOther, BOOL bMinimized);
     afx_msg void OnMenuLinesperrow1();
     afx_msg void OnMenuLinesperrow2();
@@ -382,7 +410,6 @@ protected:
 	afx_msg LRESULT OnSetListCount(WPARAM wParam, LPARAM lParam);
     afx_msg HBRUSH CtlColor(CDC *pDC, UINT nCtlColor);
     afx_msg void OnNcLButtonDblClk(UINT nHitTest, CPoint point);
-    afx_msg void OnWindowPosChanging(WINDOWPOS *lpwndpos);
     afx_msg void OnViewcaptionbaronRight();
     afx_msg void OnViewcaptionbaronBottom();
     afx_msg void OnViewcaptionbaronLeft();
@@ -405,7 +432,9 @@ protected:
     afx_msg void OnMenuNewclip();
     afx_msg void OnUpdateMenuEdititem(CCmdUI *pCmdUI);
     afx_msg void OnUpdateMenuNewclip(CCmdUI *pCmdUI);
-    afx_msg void CQPasteWnd::OnAddinSelect(UINT id);
+    afx_msg void OnAddinSelect(UINT id);
+	afx_msg void OnCustomSendToFriend(UINT idIn);
+	afx_msg void OnChaiScriptPaste(UINT idIn);
     afx_msg LRESULT OnSelectAll(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnShowHideScrollBar(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnMenuSearchDescription();
@@ -487,4 +516,15 @@ public:
 	afx_msg void OnUpdateMenuNewclip32937(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateMenuGlobalhotkeys32933(CCmdUI *pCmdUI);
 	afx_msg void OnUpdateMenuDeleteclipdata32934(CCmdUI *pCmdUI);
+	afx_msg LRESULT OnSearchFocused(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnCliporderReplacetopstickyclip();
+	afx_msg void OnUpdateCliporderReplacetopstickyclip(CCmdUI *pCmdUI);
+	afx_msg void OnSendtoPromptforname();
+	afx_msg void OnUpdateSendtoPromptforname(CCmdUI *pCmdUI);
+	afx_msg void OnImportImportcopiedfile();
+	afx_msg void OnUpdateImportImportcopiedfile(CCmdUI *pCmdUI);
+	afx_msg void OnUpdate32775(CCmdUI *pCmdUI);
+	afx_msg LRESULT OnDpiChanged(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnCliporderMovetolast();
+	afx_msg void OnUpdateCliporderMovetolast(CCmdUI *pCmdUI);
 };

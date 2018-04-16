@@ -93,7 +93,6 @@ CMainFrame::CMainFrame()
 	m_pDeleteClips = NULL;
 	m_doubleClickGroupId = -1;
 	m_doubleClickGroupStartTime = 0;
-	m_pPopupWindow = NULL;
 }
 
 CMainFrame::~CMainFrame()
@@ -110,11 +109,11 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 
 	m_PowerManager.Start(m_hWnd);
 
-    //Center the main window so message boxes are in the center
-    CRect rcScreen;
-    GetMonitorRect(0, &rcScreen);
-    CPoint cpCenter = rcScreen.CenterPoint();
-    //MoveWindow(cpCenter.x, cpCenter.x,  - 2,  - 2);
+    ////Center the main window so message boxes are in the center
+    //CRect rcScreen;
+    //GetMonitorRect(0, &rcScreen);
+    //CPoint cpCenter = rcScreen.CenterPoint();
+    ////MoveWindow(cpCenter.x, cpCenter.x,  - 2,  - 2);
 
     //Then set the main window to transparent so it's never shown
     //if it is shown then only the task tray icon
@@ -132,6 +131,12 @@ int CMainFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	m_trayIcon.Create(this, IDR_MENU, _T("Ditto"), CTrayNotifyIcon::LoadIcon(IDR_MAINFRAME), WM_TRAYNOTIFY, 0, 1);
 	m_trayIcon.SetDefaultMenuItem(ID_FIRST_SHOWQUICKPASTE, FALSE);	    
     m_trayIcon.MinimiseToTray(this);
+
+	if (CGetSetOptions::GetShowStartupMessage())
+	{
+		CString msg = theApp.m_Language.GetString(_T("StartupMsg"), _T("Ditto is running minimized, Ditto can be opened by hot keys or by clicking the task tray icon"));
+		m_trayIcon.SetBalloonDetails(msg, _T("Ditto"), CTrayNotifyIcon::BalloonStyle::Info, CGetSetOptions::GetBalloonTimeout());
+	}
 
 	theApp.m_Language.UpdateTrayIconRightClickMenu(&m_trayIcon.GetMenu());
 	
@@ -169,6 +174,12 @@ LRESULT CMainFrame::OnTrayNotification(WPARAM wParam, LPARAM lParam)
 	if (WM_MOUSEFIRST <= LOWORD(lParam) && LOWORD(lParam) <= WM_MOUSELAST)
 	{
 		theApp.m_activeWnd.TrackActiveWnd(true);
+	}
+
+	//click on balloon
+	if (lParam == 0x405)
+	{
+		SetTimer(DELAYED_SHOW_DITTO_TIMER, 100, NULL);		
 	}
 	
 	m_trayIcon.OnTrayNotification(wParam, lParam);
@@ -268,10 +279,7 @@ LRESULT CMainFrame::OnHotKey(WPARAM wParam, LPARAM lParam)
 
 			StartKeyModifyerTimer();
 
-			//Before we show our window find the current focused window for paste into
-			theApp.m_activeWnd.TrackActiveWnd(true);
-
-            m_quickPaste.ShowQPasteWnd(this, false, true, FALSE);
+			ShowQPasteWithActiveWindowCheck();
         }
 
         //KillTimer(CLOSE_WINDOW_TIMER);
@@ -411,6 +419,38 @@ LRESULT CMainFrame::OnHotKey(WPARAM wParam, LPARAM lParam)
 	}
 
     return TRUE;
+}
+
+void CMainFrame::ShowQPasteWithActiveWindowCheck()
+{
+	//Before we show our window find the current focused window for paste into
+	theApp.m_activeWnd.TrackActiveWnd(true);
+
+	if (CGetSetOptions::GetOpenToGroupByActiveExe() &&
+		theApp.m_activeWnd.ActiveWnd() != NULL)
+	{
+		CString exeName = GetProcessName(theApp.m_activeWnd.ActiveWnd());
+		if (exeName != _T(""))
+		{
+			theApp.TryEnterOldGroupState();
+			CString query = StrF(_T("SELECT lID FROM Main WHERE bIsGroup = 1 AND mText = '%s' COLLATE NOCASE"), exeName);
+			CppSQLite3Query q = theApp.m_db.execQueryEx(query);
+			if (q.eof() == false)
+			{
+				int groupId = q.getIntField(_T("lID"));
+				//this will revert back to the old group on hide of ditto
+				theApp.EnterGroupID(groupId, TRUE, TRUE);
+
+				Log(StrF(_T("Opening Ditto to Group based on found group name, name: %s, GroupId: %d"), exeName, groupId));
+			}
+			else
+			{
+				theApp.TryEnterOldGroupState();
+			}
+		}
+	}
+
+	m_quickPaste.ShowQPasteWnd(this, false, true, FALSE);
 }
 
 void CMainFrame::DoTextOnlyPaste()
@@ -717,27 +757,20 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
 				m_doubleClickGroupStartTime = 0;
 			}
 			break;
-		case CLOSE_POPUP_MSG_WND:
-			{
-				KillTimer(CLOSE_POPUP_MSG_WND);
 
-				if(m_pPopupWindow != NULL)
-				{
-					if(::IsWindow(m_pPopupWindow->m_hWnd))
-					{
-						m_pPopupWindow->DestroyWindow();
-					}
-					delete m_pPopupWindow;
-					m_pPopupWindow = NULL;
-				}
-			}
-			break;
 		case SCREEN_RESOLUTION_CHANGED:
 			{
 				KillTimer(SCREEN_RESOLUTION_CHANGED);
 				m_quickPaste.OnScreenResolutionChange();
 			}
 			break;
+		case DELAYED_SHOW_DITTO_TIMER:
+		{
+			KillTimer(DELAYED_SHOW_DITTO_TIMER);
+			m_quickPaste.ShowQPasteWnd(this, false, false, FALSE);
+		}
+		break;
+
     }
 
     CFrameWnd::OnTimer(nIDEvent);
@@ -791,18 +824,31 @@ LRESULT CMainFrame::OnClipboardCopied(WPARAM wParam, LPARAM lParam)
 		m_thread.AddClipToSave(pClip);
 	} 
     
-    Log(_T("End of function OnClipboardCopied"));
+    Log(_T("End of function OnClipboardCopied"));	
     return TRUE;
 }
 
 BOOL CMainFrame::PreTranslateMessage(MSG *pMsg)
 {
-	
-    // target before mouse messages change the focus
-	/*if(theApp.m_bShowingQuickPaste && WM_MOUSEFIRST <= pMsg->message && pMsg->message <= WM_MOUSELAST)
+	//forward the mouse wheel onto the window under the cursor
+	//normally windows only sends it to the window with focus, bypass this
+	if (pMsg->message == WM_MOUSEWHEEL &&
+		::GetCapture() == nullptr)
 	{
-	theApp.m_activeWnd.TrackActiveWnd(true);
-	}*/
+		POINT mouse;
+		GetCursorPos(&mouse);
+		HWND hwndFromPoint = ::WindowFromPoint(mouse);
+
+		if (pMsg->hwnd != hwndFromPoint)
+		{
+			DWORD winProcessId = 0;
+			::GetWindowThreadProcessId(hwndFromPoint, &winProcessId);
+			if (winProcessId == ::GetCurrentProcessId()) //no-fail!
+			{
+				pMsg->hwnd = hwndFromPoint;
+			}
+		}
+	}
 
     return CFrameWnd::PreTranslateMessage(pMsg);
 }
@@ -885,6 +931,7 @@ LRESULT CMainFrame::OnLoadClipOnClipboard(WPARAM wParam, LPARAM lParam)
 		CProcessPaste paste;
 		paste.m_bSendPaste = false;
 		paste.m_bActivateTarget = false;
+		paste.m_pasteOptions.m_delayRenderLockout = GetTickCount();
 
 		LogSendRecieveInfo("---------OnLoadClipOnClipboard - Before PutFormats on clipboard");
 
@@ -914,16 +961,26 @@ LRESULT CMainFrame::OnAddToDatabaseFromSocket(WPARAM wParam, LPARAM lParam)
         return FALSE;
     }
 
-    BOOL bSetToClipBoard = (BOOL)lParam;
-    if(bSetToClipBoard)
+    DWORD flags = (DWORD)lParam;
+    if(flags & REMOTE_CLIP_ADD_TO_CLIPBOARD)
     {
         CClip *pClip = pClipList->GetTail();
         if(pClip)
         {
 			LogSendRecieveInfo("OnAddToDatabaseFromSocket - Adding clip from socket setting clip to be put on clipboard");
-			pClip->m_param1 = TRUE;
+			pClip->m_param1 |= REMOTE_CLIP_ADD_TO_CLIPBOARD;
 		}
     }
+
+	if (flags & REMOTE_CLIP_MANUAL_SEND)
+	{
+		CClip *pClip = pClipList->GetTail();
+		if (pClip)
+		{
+			LogSendRecieveInfo("OnAddToDatabaseFromSocket - Adding clip from socket setting clip was a manual send from other side");
+			pClip->m_param1 |= REMOTE_CLIP_MANUAL_SEND;
+		}
+	}
 
 	m_thread.AddRemoteClipToSave(pClipList);
 
@@ -980,23 +1037,7 @@ void CMainFrame::OnFirstHelp()
 void CMainFrame::ShowErrorMessage(CString csTitle, CString csMessage)
 {
     Log(StrF(_T("ShowErrorMessage %s - %s"), csTitle, csMessage));
-
-    CToolTipEx *pErrorWnd = new CToolTipEx;
-    pErrorWnd->Create(this);
-    pErrorWnd->SetToolTipText(csTitle + "\n\n" + csMessage);
-
-    CPoint pt;
-    CRect rcScreen;
-    GetMonitorRect(0, &rcScreen);
-    pt = rcScreen.BottomRight();
-
-    CRect cr = pErrorWnd->GetBoundsRect();
-
-    pt.x -= max(cr.Width() + 50, 150);
-    pt.y -= max(cr.Height() + 50, 150);
-
-    pErrorWnd->Show(pt);
-    pErrorWnd->HideWindowInXMilliSeconds(4000);
+	m_trayIcon.SetBalloonDetails(csMessage, csTitle, CTrayNotifyIcon::BalloonStyle::Error, CGetSetOptions::GetBalloonTimeout());
 }
 
 void CMainFrame::OnFirstImport()
@@ -1047,11 +1088,11 @@ LRESULT CMainFrame::OnSetConnected(WPARAM wParam, LPARAM lParam)
 {
     if(wParam)
     {
-        theApp.SetConnectCV(true);
+        theApp.SetConnectCV(true);		
     }
     else if(lParam)
     {
-        theApp.SetConnectCV(false);
+        theApp.SetConnectCV(false);		
     }
 
     return TRUE;
@@ -1061,7 +1102,7 @@ LRESULT CMainFrame::OnOpenCloseWindow(WPARAM wParam, LPARAM lParam)
 {
 	if(wParam)
 	{
-		m_quickPaste.ShowQPasteWnd(this, false, false, FALSE);
+		ShowQPasteWithActiveWindowCheck();
 	}
 	else if(lParam)
 	{
@@ -1238,7 +1279,7 @@ void CMainFrame::OnFirstSavecurrentclipboard()
 		CClipTypes* pTypes = theApp.LoadTypesFromDB();
 		if(pTypes)
 		{
-			if(pClip->LoadFromClipboard(pTypes, false))
+			if(pClip->LoadFromClipboard(pTypes, false, _T("")))
 			{
 				Log(_T("Loaded clips from the clipboard, sending message to save to the db"));
 				::PostMessage(m_hWnd, WM_CLIPBOARD_COPIED, (WPARAM)pClip, 0);
@@ -1287,20 +1328,10 @@ LRESULT CMainFrame::OnReOpenDatabase(WPARAM wParam, LPARAM lParam)
 
 LRESULT CMainFrame::OnShowMsgWindow(WPARAM wParam, LPARAM lParam)
 {
-	if(m_pPopupWindow != NULL)
-	{
-		if(::IsWindow(m_pPopupWindow->m_hWnd))
-		{
-			m_pPopupWindow->DestroyWindow();
-		}
-		delete m_pPopupWindow;
-		m_pPopupWindow = NULL;
-	}
-
 	CString *pMsg = (CString*)wParam;
 	int clipId = (int)lParam;
 
-	CRect r;
+	/*CRect r;
 	GetMonitorRect(0, r);
 
 	m_pPopupWindow = new CDittoPopupWindow();
@@ -1311,7 +1342,9 @@ LRESULT CMainFrame::OnShowMsgWindow(WPARAM wParam, LPARAM lParam)
 	m_pPopupWindow->SetCopyToGroupId(clipId);
 	m_pPopupWindow->UpdateText(*pMsg);	
 
-	SetTimer(CLOSE_POPUP_MSG_WND, 2500, 0);
+	SetTimer(CLOSE_POPUP_MSG_WND, 2500, 0);*/
+
+	m_trayIcon.SetBalloonDetails(pMsg->GetBuffer(), _T("Ditto"), CTrayNotifyIcon::BalloonStyle::Info, CGetSetOptions::GetBalloonTimeout());
 
 	delete pMsg;
 	return TRUE;

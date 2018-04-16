@@ -45,6 +45,7 @@ void CMultiLanguage::ClearArrays()
 	ClearArray(m_OptionsSupportedTypes);
 	ClearArray(m_OptionsShortcuts);
 	ClearArray(m_OptionsQuickPaste);
+	ClearArray(m_OptionsQuickPasteKeyboard);
 	ClearArray(m_OptionsFriends);
 	ClearArray(m_OptionsFriendsDetail);
 	ClearArray(m_OptionsStats);
@@ -137,6 +138,21 @@ CString CMultiLanguage::GetDeleteClipDataString(CString csID, CString csDefault)
 	return csDefault;
 }
 
+CString CMultiLanguage::GetQuickPasteKeyboardString(int id, CString csDefault)
+{
+	INT_PTR size = m_OptionsQuickPasteKeyboard.GetSize();
+	for (int i = 0; i < size; i++)
+	{
+		CLangItem *plItem = m_OptionsQuickPasteKeyboard[i];
+		if (plItem->m_nID == id)
+		{
+			return plItem->m_csForeignLang;
+		}
+	}
+
+	return csDefault;
+}
+
 bool CMultiLanguage::UpdateRightClickMenu(CMenu *pMenu)
 {
 	return UpdateMenuToLanguage(pMenu, m_RightClickMenu);
@@ -175,6 +191,11 @@ bool CMultiLanguage::UpdateOptionShortcuts(CWnd *pParent)
 bool CMultiLanguage::UpdateOptionQuickPaste(CWnd *pParent)
 {
 	return UpdateWindowToLanguage(pParent, m_OptionsQuickPaste);
+}
+
+bool CMultiLanguage::UpdateOptionQuickPasteKeyboard(CWnd *pParent)
+{
+	return UpdateWindowToLanguage(pParent, m_OptionsQuickPasteKeyboard);
 }
 
 bool CMultiLanguage::UpdateOptionFriends(CWnd *pParent)
@@ -294,6 +315,11 @@ CMenu * CMultiLanguage::GetMenuPos(CMenu *pMenu, const CString &csLookingForMenu
 		if(csMenuText == csLookingForMenuText)
 		{
 			nMenuPos = i;
+			pSubMenu = pMenu->GetSubMenu(i);
+			if (pSubMenu != NULL)
+			{
+				return pSubMenu;
+			}
 			return pMenu;
 		}
 
@@ -330,7 +356,7 @@ bool CMultiLanguage::LoadLanguageFile(CString csFile)
 	TiXmlDocument doc(csPathA);
 	if(!doc.LoadFile())
 	{
-		m_csLastError.Format(_T("Error loading file %s - reason = %s"), csFile, CTextConvert::ConvertToUnicode(doc.ErrorDesc()));
+		m_csLastError.Format(_T("Error loading file %s - reason = %s, Line: %d, column: %d"), csFile, CTextConvert::ConvertToUnicode(doc.ErrorDesc()), doc.ErrorRow(), doc.ErrorCol());
 		Log(m_csLastError);
 		return false;
 	}
@@ -360,6 +386,7 @@ bool CMultiLanguage::LoadLanguageFile(CString csFile)
 	bRet = LoadSection(*ItemHeader, m_OptionsSupportedTypes, "Ditto_Options_Supported_Types");
 	bRet = LoadSection(*ItemHeader, m_OptionsShortcuts, "Ditto_Options_Shortcuts");
 	bRet = LoadSection(*ItemHeader, m_OptionsQuickPaste, "Ditto_Options_Quick_Paste");
+	bRet = LoadSection(*ItemHeader, m_OptionsQuickPasteKeyboard, "Ditto_Options_Quick_Paste_Keyboard");
 	bRet = LoadSection(*ItemHeader, m_OptionsFriends, "Ditto_Options_Friends");
 	bRet = LoadSection(*ItemHeader, m_OptionsFriendsDetail, "Ditto_Options_Friends_Detail");
 	bRet = LoadSection(*ItemHeader, m_OptionsStats, "Ditto_Options_Stats");

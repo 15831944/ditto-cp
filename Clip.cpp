@@ -11,6 +11,9 @@
 #include "shared/TextConvert.h"
 #include "zlib/zlib.h"
 #include "Misc.h"
+#include "Md5.h"
+#include "ChaiScriptOnCopy.h"
+#include "DittoChaiScript.h"
 
 #include <Mmsystem.h>
 
@@ -131,6 +134,56 @@ void CClipFormat::Free()
 	}
 }
 
+Gdiplus::Bitmap *CClipFormat::CreateGdiplusBitmap()
+{
+	Gdiplus::Bitmap *gdipBitmap = NULL;
+	IStream* pIStream = NULL;
+
+	if (CreateStreamOnHGlobal(NULL, TRUE, (LPSTREAM*)&pIStream) == S_OK)
+	{
+		if (this->m_cfType == CF_DIB)
+		{
+			LPVOID pvData = GlobalLock(this->m_hgData);
+			ULONG size = (ULONG)GlobalSize(this->m_hgData);
+
+			BITMAPINFO *lpBI = (BITMAPINFO *)pvData;
+
+			int nPaletteEntries = 1 << lpBI->bmiHeader.biBitCount;
+			if (lpBI->bmiHeader.biBitCount > 8)
+				nPaletteEntries = 0;
+			else if (lpBI->bmiHeader.biClrUsed != 0)
+				nPaletteEntries = lpBI->bmiHeader.biClrUsed;
+
+			BITMAPFILEHEADER BFH;
+			memset(&BFH, 0, sizeof(BITMAPFILEHEADER));
+			BFH.bfType = 'MB';
+			BFH.bfSize = sizeof(BITMAPFILEHEADER) + size;
+			BFH.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + nPaletteEntries * sizeof(RGBQUAD);
+
+			pIStream->Write(&BFH, sizeof(BITMAPFILEHEADER), NULL);
+			pIStream->Write(pvData, size, NULL);
+
+			GlobalUnlock(this->m_hgData);
+
+			gdipBitmap = Gdiplus::Bitmap::FromStream(pIStream);
+		}
+		else if (this->m_cfType == theApp.m_PNG_Format)
+		{
+			LPVOID pvData = GlobalLock(this->m_hgData);
+			ULONG size = (ULONG)GlobalSize(this->m_hgData);
+			pIStream->Write(pvData, size, NULL);
+
+			GlobalUnlock(this->m_hgData);
+
+			gdipBitmap = Gdiplus::Bitmap::FromStream(pIStream);
+		}
+
+		pIStream->Release();
+	}
+
+	return gdipBitmap;
+}
+
 
 
 /*----------------------------------------------------------------------------*\
@@ -151,6 +204,8 @@ CClipFormat* CClipFormats::FindFormat(UINT cfType)
 	}
 	return NULL;
 }
+
+
 
 
 /*----------------------------------------------------------------------------*\
@@ -250,7 +305,7 @@ void CClip::EmptyFormats()
 }
 
 // Adds a new Format to this Clip by copying the given data.
-bool CClip::AddFormat(CLIPFORMAT cfType, void* pData, UINT nLen)
+bool CClip::AddFormat(CLIPFORMAT cfType, void* pData, UINT nLen, bool setDesc)
 {
 	ASSERT(pData && nLen);
 	HGLOBAL hGlobal = ::NewGlobalP(pData, nLen);
@@ -259,8 +314,11 @@ bool CClip::AddFormat(CLIPFORMAT cfType, void* pData, UINT nLen)
 	// update the Clip statistics
 	m_Time = m_Time.GetCurrentTime();
 
-	if(!SetDescFromText(hGlobal, true))
-		SetDescFromType();
+	if (setDesc)
+	{
+		if (cfType != CF_UNICODETEXT || !SetDescFromText(hGlobal, true))
+			SetDescFromType();
+	}
 	
 	CClipFormat format(cfType,hGlobal);
 	CClipFormat *pFormat;
@@ -282,7 +340,7 @@ bool CClip::AddFormat(CLIPFORMAT cfType, void* pData, UINT nLen)
 }
 
 // Fills this CClip with the contents of the clipboard.
-bool CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore)
+int CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore, CString activeApp)
 {
 	COleDataObjectEx oleData;
 	CClipTypes defaultTypes;
@@ -295,7 +353,7 @@ bool CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore)
 	if(::IsClipboardFormatAvailable(theApp.m_cfIgnoreClipboard))
 	{
 		Log(_T("Clipboard ignore type is on the clipboard, skipping this clipboard change"));
-		return false;
+		return FALSE;
 	}
 
 	//If we are saving a multi paste then delay us connecting to the clipboard
@@ -311,7 +369,7 @@ bool CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore)
 	{
 		Log(_T("failed to attache to clipboard, skipping this clipboard change"));
 		ASSERT(0); // does this ever happen?
-		return false;
+		return FALSE;
 	}
 	
 	oleData.EnsureClipboardObject();
@@ -341,8 +399,38 @@ bool CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore)
 	cfDesc.m_cfType = CF_UNICODETEXT;	
 	if(oleData.IsDataAvailable(cfDesc.m_cfType))
 	{
-		cfDesc.m_hgData = oleData.GetGlobalData(cfDesc.m_cfType);
+		for (int i = 0; i < 10; i++)
+		{
+			cfDesc.m_hgData = oleData.GetGlobalData(cfDesc.m_cfType);
+			if (cfDesc.m_hgData == NULL)
+			{
+				Log(StrF(_T("Tried to set description from cf_unicode, data is NULL, try: %d"), i+1));
+			}
+			else
+			{
+				break;
+			}
+			Sleep(10);
+		}
 		bIsDescSet = SetDescFromText(cfDesc.m_hgData, true);
+
+		if (activeApp != _T(""))
+		{
+			TCHAR* text = (TCHAR *)GlobalLock(cfDesc.m_hgData);
+			if (text != NULL)
+			{
+				std::wstring stringData(text);
+				GlobalUnlock(cfDesc.m_hgData);
+				if (g_Opt.m_regexHelper.TextMatchFilters(activeApp, stringData))
+				{
+					return -1;
+				}
+			}
+			else
+			{
+				GlobalUnlock(cfDesc.m_hgData);
+			}
+		}
 
 		Log(StrF(_T("Tried to set description from cf_unicode text, Set: %d, Desc: [%s]"), bIsDescSet, m_Desc.Left(30)));
 	}
@@ -352,7 +440,20 @@ bool CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore)
 		cfDesc.m_cfType = CF_TEXT;	
 		if(oleData.IsDataAvailable(cfDesc.m_cfType))
 		{
-			cfDesc.m_hgData = oleData.GetGlobalData(cfDesc.m_cfType);
+			for (int i = 0; i < 10; i++)
+			{
+				cfDesc.m_hgData = oleData.GetGlobalData(cfDesc.m_cfType);
+				if (cfDesc.m_hgData == NULL)
+				{
+					Log(StrF(_T("Tried to set description from cf_text, data is NULL, try: %d"), i + 1));
+				}
+				else
+				{
+					break;
+				}
+				Sleep(10);
+			}
+
 			bIsDescSet = SetDescFromText(cfDesc.m_hgData, false);
 
 			Log(StrF(_T("Tried to set description from cf_text text, Set: %d, Desc: [%s]"), bIsDescSet, m_Desc.Left(30)));
@@ -368,6 +469,13 @@ bool CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore)
 	for(int i = 0; i < numTypes; i++)
 	{
 		cf.m_cfType = pTypes->ElementAt(i);
+
+		if (cf.m_cfType == CF_DIB &&
+			g_Opt.m_excludeCF_DIBInExcel &&
+			activeApp.MakeLower() == _T("excel.exe"))
+		{
+			continue;
+		}
 
 		BOOL bSuccess = false;
 		Log(StrF(_T("Begin try and load type %s"), GetFormatName(cf.m_cfType)));
@@ -385,7 +493,17 @@ bool CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore)
 		}
 		else
 		{
-			cf.m_hgData = oleData.GetGlobalData(cf.m_cfType);
+			for (int i = 0; i < 2; i++)
+			{
+				cf.m_hgData = oleData.GetGlobalData(cf.m_cfType);
+				if (cf.m_hgData != NULL)
+				{
+					break;
+				}
+
+				Log(StrF(_T("Tried to get data for type: %s, data is NULL, try: %d"), GetFormatName(cf.m_cfType), i + 1));
+				Sleep(5);
+			}
 		}
 		
 		if(cf.m_hgData)
@@ -400,7 +518,7 @@ bool CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore)
 					Log(cs);
 
 					oleData.Release();
-					return false;
+					return -1;
 				}
 
 				ASSERT(::IsValid(cf.m_hgData));
@@ -439,14 +557,62 @@ bool CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore)
 	}
 	
 	oleData.Release();
+
+	if (!bIsDescSet &&
+		this->m_Desc != _T(""))
+	{
+		std::wstring stringData(this->m_Desc);
+		if (g_Opt.m_regexHelper.TextMatchFilters(activeApp, stringData))
+		{
+			return -1;
+		}
+	}
 	
 	if(m_Formats.GetSize() == 0)
 	{
 		Log(_T("No clip types were in supported types array"));
-		return false;
+		return FALSE;
 	}
 
-	return true;
+	try
+	{
+		for (auto & listItem : g_Opt.m_copyScripts.m_list)
+		{
+			if (listItem.m_active)
+			{
+				Log(StrF(_T("Start of process copy name: %s, script: %s"), listItem.m_name, listItem.m_script));
+
+				ChaiScriptOnCopy onCopy;
+				CDittoChaiScript clipData(this, (LPCSTR)CTextConvert::ConvertToChar(activeApp));
+				if (onCopy.ProcessScript(clipData, (LPCSTR)CTextConvert::ConvertToChar(listItem.m_script)) == false)
+				{
+					Log(StrF(_T("End of process copy name: %s, returned false, not saving this copy to Ditto, last Error: %s"), listItem.m_name, onCopy.m_lastError));
+
+					return -1;
+				}
+
+				Log(StrF(_T("End of process copy name: %s, returned true, last Error: %s"), listItem.m_name, onCopy.m_lastError));
+			}
+			else
+			{
+				Log(StrF(_T("Script is not active, not processing name: %s, script: %s"), listItem.m_name, listItem.m_script));
+			}
+		}
+	}
+	catch (CException *ex)
+	{
+		TCHAR szCause[255];
+		ex->GetErrorMessage(szCause, 255);
+		CString cs;
+		cs.Format(_T("save copy exception: %s"), szCause);
+		Log(cs);
+	}
+	catch (...)
+	{
+		Log(_T("save copy exception 2"));
+	}
+
+	return TRUE;
 }
 
 bool CClip::SetDescFromText(HGLOBAL hgData, bool unicode)
@@ -556,8 +722,8 @@ bool CClip::AddToDB(bool bCheckForDuplicates)
 
 				CString sql;
 				
-				sql.Format(_T("UPDATE Main SET clipOrder = %f, lastPasteDate = %d where lID = %d;"), 
-								m_clipOrder, (int)CTime::GetCurrentTime().GetTime(), nID);
+				sql.Format(_T("UPDATE Main SET clipOrder = %f where lID = %d;"), 
+								m_clipOrder, nID);
 
 				int ret = theApp.m_db.execDML(sql);
 
@@ -628,6 +794,8 @@ int CClip::FindDuplicate()
 	return -1;
 }
 
+
+
 DWORD CClip::GenerateCRC()
 {
 	CClipFormat* pCF;
@@ -646,7 +814,43 @@ DWORD CClip::GenerateCRC()
 			const unsigned char *Data = (const unsigned char *)GlobalLock(pCF->m_hgData);
 			if(Data)
 			{
-				pCrc32->GenerateCrc32((const LPBYTE)Data, (DWORD)GlobalSize(pCF->m_hgData), dwCRC);
+				if (CGetSetOptions::GetAdjustClipsForCRC())
+				{
+					//Try and remove known things that change in rtf (word and outlook)
+					if (pCF->m_cfType == theApp.m_RTFFormat)
+					{
+						CStringA CStringData((char*)Data);
+
+						//In word and outlook I was finding that data in the \\datastore section was always changing, remove this for the crc check
+						RemoveRTFSection(CStringData, "{\\*\\datastore");
+
+						//In word and outlook rsid values are always changing, remove these for the crc check
+						DeleteParamFromRTF(CStringData, "\\rsid", true);
+						DeleteParamFromRTF(CStringData, "\\insrsid", true);
+						DeleteParamFromRTF(CStringData, "\\mdispDef1", false);
+
+						pCrc32->GenerateCrc32((const LPBYTE)CStringData.GetBuffer(), (DWORD)CStringData.GetLength(), dwCRC);
+					}
+					else
+					{
+						//i've seen examble where the text size was 10 but the data size was 20, leading to random crc values
+						//try and only check the crc for the actual text
+						int dataLength = GlobalSize(pCF->m_hgData);
+						if (pCF->m_cfType == CF_TEXT)
+						{
+							dataLength = min(dataLength, (strlen((char*)Data) + 1));
+						}
+						else if (pCF->m_cfType == CF_UNICODETEXT)
+						{
+							dataLength = min(dataLength, ((wcslen((wchar_t*)Data) + 1) * 2));
+						}
+						pCrc32->GenerateCrc32((const LPBYTE)Data, (DWORD)dataLength, dwCRC);
+					}
+				}
+				else
+				{
+					pCrc32->GenerateCrc32((const LPBYTE)Data, (DWORD)GlobalSize(pCF->m_hgData), dwCRC);
+				}
 			}
 			GlobalUnlock(pCF->m_hgData);
 		}
@@ -741,6 +945,25 @@ bool CClip::ModifyMainTable()
 	CATCH_SQLITE_EXCEPTION_AND_RETURN(false)
 
 	return bRet;
+}
+
+bool CClip::ModifyDescription()
+{
+	bool bRet = false;
+	try
+	{
+		m_Desc.Replace(_T("'"), _T("''"));
+
+		theApp.m_db.execDMLEx(_T("UPDATE Main SET mText = '%s' ")
+			_T("WHERE lID = %d;"),
+			m_Desc,
+			m_id);
+
+		bRet = true;
+	}
+	CATCH_SQLITE_EXCEPTION_AND_RETURN(false)
+
+		return bRet;
 }
 
 // Empties m_Formats as it saves them to the Data Table.
@@ -1007,16 +1230,27 @@ void CClip::MakeStickyLast(int parentId)
 	}
 }
 
-void CClip::RemoveStickySetting(int parentId)
+bool CClip::RemoveStickySetting(int parentId)
 {
+	bool reset = false;
 	if (parentId < 0)
 	{
-		m_stickyClipOrder = INVALID_STICKY;
+		if (m_stickyClipOrder != INVALID_STICKY)
+		{
+			m_stickyClipOrder = INVALID_STICKY;
+			reset = true;
+		}
 	}
 	else
 	{
-		m_stickyClipGroupOrder = INVALID_STICKY;
+		if (m_stickyClipGroupOrder != INVALID_STICKY)
+		{
+			m_stickyClipGroupOrder = INVALID_STICKY;
+			reset = true;
+		}
 	}
+
+	return reset;
 }
 
 double CClip::GetNewTopSticky(int parentId, int clipId)
@@ -1108,6 +1342,19 @@ void CClip::MakeLatestGroupOrder()
 	}
 }
 
+void CClip::MakeLastOrder()
+{
+	m_clipOrder = GetNewLastOrder(-1, m_id);
+}
+
+void CClip::MakeLastGroupOrder()
+{
+	if (m_parentId > -1)
+	{
+		m_clipGroupOrder = GetNewLastOrder(m_parentId, m_id);
+	}
+}
+
 double CClip::GetNewOrder(int parentId, int clipId)
 {
 	double newOrder = 0;
@@ -1141,6 +1388,41 @@ double CClip::GetNewOrder(int parentId, int clipId)
 	CATCH_SQLITE_EXCEPTION
 
 	return newOrder;
+}
+
+double CClip::GetNewLastOrder(int parentId, int clipId)
+{
+	double newOrder = 0;
+	double existingMinOrder = 0;
+	CString existingDesc = _T("");
+
+	try
+	{
+		if (parentId < 0)
+		{
+			CppSQLite3Query q = theApp.m_db.execQuery(_T("SELECT clipOrder, mText FROM Main where clipOrder notnull ORDER BY clipOrder ASC LIMIT 1"));
+			if (q.eof() == false)
+			{
+				existingMinOrder = q.getFloatField(_T("clipOrder"));
+				existingDesc = q.getStringField(_T("mText"));
+				newOrder = existingMinOrder - 1;
+			}
+		}
+		else
+		{
+			CppSQLite3Query q = theApp.m_db.execQueryEx(_T("SELECT clipGroupOrder, mText FROM Main WHERE lParentID = %d AND clipGroupOrder notnull ORDER BY clipGroupOrder ASC LIMIT 1"), parentId);
+			if (q.eof() == false)
+			{
+				existingMinOrder = q.getFloatField(_T("clipGroupOrder"));
+				newOrder = existingMinOrder - 1;
+			}
+		}
+
+		Log(StrF(_T("GetLastOrder, Id: %d, parentId: %d, CurrentMin: %f, CurrentDesc: %s, NewMax: %f"), clipId, parentId, existingMinOrder, existingDesc, newOrder));
+	}
+	CATCH_SQLITE_EXCEPTION
+
+		return newOrder;
 }
 
 BOOL CClip::LoadMainTable(int id)
@@ -1429,6 +1711,242 @@ BOOL CClip::WriteTextToFile(CString path, BOOL unicode, BOOL asci, BOOL utf8)
 	}
 
 	return ret;
+}
+
+BOOL CClip::WriteImageToFile(CString path)
+{
+	BOOL ret = false;
+
+	CClipFormat *bitmap = this->m_Formats.FindFormat(CF_DIB);
+	if (bitmap)
+	{
+		LPVOID pvData = GlobalLock(bitmap->m_hgData);
+		ULONG size = (ULONG)GlobalSize(bitmap->m_hgData);
+
+		BITMAPINFO *lpBI = (BITMAPINFO *)pvData;
+
+		int nPaletteEntries = 1 << lpBI->bmiHeader.biBitCount;
+		if (lpBI->bmiHeader.biBitCount > 8)
+			nPaletteEntries = 0;
+		else if (lpBI->bmiHeader.biClrUsed != 0)
+			nPaletteEntries = lpBI->bmiHeader.biClrUsed;
+
+		BITMAPFILEHEADER BFH;
+		memset(&BFH, 0, sizeof(BITMAPFILEHEADER));
+		BFH.bfType = 'MB';
+		BFH.bfSize = sizeof(BITMAPFILEHEADER) + size;
+		BFH.bfOffBits = sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + nPaletteEntries * sizeof(RGBQUAD);
+
+		// Create stream with 0 size
+		IStream* pIStream = NULL;
+		if (CreateStreamOnHGlobal(NULL, TRUE, (LPSTREAM*)&pIStream) == S_OK)
+		{
+
+			//write the file to the stream object
+			pIStream->Write(&BFH, sizeof(BITMAPFILEHEADER), NULL);
+			pIStream->Write(pvData, size, NULL);
+
+			CImage i;
+			i.Load(pIStream);
+
+			if (i.Save(path) == S_OK)
+			{
+				ret = true;
+			}
+
+			pIStream->Release();
+		}
+	}
+	else
+	{
+		CClipFormat *png = this->m_Formats.FindFormat(theApp.m_PNG_Format);
+		if (png)
+		{
+			IStream* pIStream = NULL;
+			if (CreateStreamOnHGlobal(NULL, TRUE, (LPSTREAM*)&pIStream) == S_OK)
+			{
+				LPVOID pvData = GlobalLock(png->m_hgData);
+				ULONG size = (ULONG)GlobalSize(png->m_hgData);
+
+				pIStream->Write(pvData, size, NULL);
+
+				GlobalUnlock(png->m_hgData);
+
+				CImage i;
+				i.Load(pIStream);
+
+				if (i.Save(path) == S_OK)
+				{
+					ret = true;
+				}
+
+				pIStream->Release();
+			}
+		}
+	}
+	return ret;
+}
+
+bool CClip::AddFileDataToData(CString &errorMessage)
+{
+	INT_PTR size = m_Formats.GetSize();
+	if (size <= 0)
+	{
+		errorMessage = _T("No CF_HDROP formats to convert");
+		return false;
+	}
+
+	bool addedFileData = false;
+
+	int nCF_HDROPIndex = -1;
+	int dittoDataIndex = -1;
+	for (int i = 0; i < size; i++)
+	{
+		if (m_Formats[i].m_cfType == CF_HDROP)
+		{
+			nCF_HDROPIndex = i;
+		}
+		else if(m_Formats[i].m_cfType == theApp.m_DittoFileData)
+		{
+			dittoDataIndex = i;
+		}
+	}	
+
+	if (nCF_HDROPIndex < 0)
+	{
+		errorMessage = _T("No CF_HDROP formats to convert");
+		return false;
+	}
+	else if (dittoDataIndex >= 0)
+	{
+		return false;
+	}
+	else
+	{
+		using namespace nsPath;
+
+		HDROP drop = (HDROP)GlobalLock(m_Formats[nCF_HDROPIndex].m_hgData);
+		int nNumFiles = DragQueryFile(drop, -1, NULL, 0);
+		
+		TCHAR filePath[MAX_PATH];
+
+		CString newDesc = _T("File Contents - ");
+				
+		for (int nFile = 0; nFile < nNumFiles; nFile++)
+		{
+			if (DragQueryFile(drop, nFile, filePath, sizeof(filePath)) > 0)
+			{
+				CFile file;
+				CFileException ex;
+				if (file.Open(filePath, CFile::modeRead | CFile::typeBinary | CFile::shareDenyNone, &ex))
+				{
+					ULONGLONG fileSize = file.GetLength();
+					int maxSize = CGetSetOptions::GetMaxFileContentsSize();
+					if (fileSize < maxSize)
+					{
+						CString src(filePath);
+						CStringA csFilePath;
+						CTextConvert::ConvertToUTF8(src, csFilePath);
+						
+						int bufferSize = fileSize + csFilePath.GetLength() + 1 + md5StringLength + 1;;
+						char *pBuffer = new char[bufferSize];
+						if (pBuffer != NULL)
+						{
+							//data contents
+							//original file<null terminator>md5<null terminator>file data
+
+							memset(pBuffer, 0, bufferSize);
+							strncpy(pBuffer, csFilePath, csFilePath.GetLength());
+							CClipFormat* pCF;
+						
+							//move the buffer start past the file path and md5 string
+							char *bufferStart = pBuffer + csFilePath.GetLength() + 1 + md5StringLength + 1;
+
+							int readBytes = file.Read(bufferStart, fileSize);
+
+							CMd5 md5;
+							CStringA md5String = md5.CalcMD5FromString(bufferStart, fileSize);
+
+							char *bufferMd5 = pBuffer + csFilePath.GetLength() + 1;
+							strncpy(bufferMd5, md5String, md5StringLength);
+
+							AddFormat(theApp.m_DittoFileData, pBuffer, bufferSize);
+
+							addedFileData = true;
+
+							newDesc += filePath;
+							newDesc += _T("\n");
+
+							Log(StrF(_T("Saving file contents to Ditto Database, file: %s, size: %d, md5: %s"), filePath, fileSize, md5String));
+						}
+					}
+					else
+					{
+						const int MAX_FILE_SIZE_BUFFER = 255;
+						TCHAR szFileSize[MAX_FILE_SIZE_BUFFER];
+						TCHAR szMaxFileSize[MAX_FILE_SIZE_BUFFER];
+						StrFormatByteSize(fileSize, szFileSize, MAX_FILE_SIZE_BUFFER);
+						StrFormatByteSize(maxSize, szMaxFileSize, MAX_FILE_SIZE_BUFFER);
+
+						errorMessage += StrF(_T("File is to large: %s, Size: %s, Max Size: %s\r\n"), filePath, szFileSize, szMaxFileSize);
+					}
+				}
+				else
+				{
+					TCHAR szError[200];
+					ex.GetErrorMessage(szError, 200);
+					errorMessage += StrF(_T("Error opening file: %s, Error: %s\r\n"), filePath, szError);
+				}
+			}
+		}
+
+		GlobalUnlock(m_Formats[nCF_HDROPIndex].m_hgData);
+
+		if (addedFileData)
+		{
+			for (int i = 0; i < size; i++)
+			{
+				this->m_Formats.RemoveAt(i, 1);
+			}
+
+			this->m_Desc = newDesc;
+
+			if (this->ModifyDescription())
+			{
+				if (this->AddToDataTable() == FALSE)
+				{
+					errorMessage += _T("Error saving data to database.");
+				}
+			}
+			else
+			{
+				errorMessage += _T("Error saving main table to database.");
+			}
+		}
+	}
+
+	return addedFileData;
+}
+
+Gdiplus::Bitmap *CClip::CreateGdiplusBitmap()
+{
+	Gdiplus::Bitmap *gdipBitmap = NULL;
+
+	CClipFormat *png = this->m_Formats.FindFormat(GetFormatID(_T("PNG")));
+	if (png != NULL)
+	{
+		gdipBitmap = png->CreateGdiplusBitmap();
+	}
+	else
+	{
+		CClipFormat *dib = this->m_Formats.FindFormat(CF_DIB);
+		if (dib != NULL)
+		{
+			gdipBitmap = dib->CreateGdiplusBitmap();
+		}
+	}
+
+	return gdipBitmap;
 }
 
 /*----------------------------------------------------------------------------*\

@@ -264,7 +264,7 @@ void COptionsQuickPaste::FillThemes()
 		CTheme theme;
 		if (theme.Load(find.GetFileTitle(), true, false))
 		{
-			if (theme.FileVersion() >= 2)
+			if (theme.FileVersion() >= 2 && theme.FileVersion() < 100)
 			{
 				int nIndex = m_cbTheme.AddString(find.GetFileTitle());
 
@@ -282,8 +282,8 @@ void COptionsQuickPaste::FillThemes()
 	{
 		m_cbTheme.SetCurSel(nIndex);
 	}
-
 }
+
 void COptionsQuickPaste::OnBnClickedButtonTheme()
 {
 	CTheme theme;
